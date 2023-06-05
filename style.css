@@ -1,0 +1,47 @@
+*{
+    /*
+    Light shades
+    Use this color as the background for your dark-on-light designs, or the text color of an inverted design.
+    */
+    --porcelain: rgb(238, 239, 240);
+    /* 
+    Light accent
+    Accent colors can be used to bring attention to design elements by contrasting with the rest of the palette.
+    */
+    --rolling-stone: rgb(126, 132, 138);
+    /* 
+    Main brand color
+    This color should be eye-catching but not harsh. It can be liberally applied to your layout as its main identity.
+    */
+    --abbey: rgb(54, 57, 69);
+    /* 
+    Dark accent
+    Another accent color to consider. Not all colors have to be used - sometimes a simple color scheme works best.
+    */
+    --storm-gray: rgb(108, 109, 124);
+    /* 
+    Dark shades
+    Use as the text color for dark-on-light designs, or as the background for inverted designs.
+    */
+    --baltic-sea: rgb(24, 20, 25);
+
+    /* Success */
+    --fruit-salad: rgb(77, 147, 82);
+    /* Warning */
+    --meteor: rgb(203, 131, 26);
+    /* Danger */
+    --pomegranate: rgb(244, 67, 54);
+
+    background-color: var(--baltic-sea);
+    margin: 0 auto;
+}
+body{
+    display: flex;
+    flex-flow: column wrap;
+    justify-content: center;
+    min-height: 100vh;
+}
+canvas{
+    border: 1rem solid var(--abbey);
+    border-radius: 2%;
+}
