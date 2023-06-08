@@ -25,9 +25,6 @@ function setup() {
 function draw() {
 	background(126, 132, 138)
 
-	// Reset path properties of the cells
-	resetPathProperties()
-
 	grid.forEach((row) => row.forEach((cell) => cell.show()))
 
 	current.visited = true
@@ -52,6 +49,10 @@ function draw() {
 		path.forEach((pathCell) => {
 			pathCell.isFinalPath = true
 		})
+
+		// Redraw the canvas to reflect the changes
+		background(126, 132, 138)
+		grid.forEach((row) => row.forEach((cell) => cell.show()))
 
 		//Stop the animation loop
 		noLoop()
@@ -90,9 +91,6 @@ class Cell {
 		this.y = y
 		this.walls = [true, true, true, true]
 		this.visited = false
-		this.inOpenSet = false
-		this.inClosedSet = false
-		this.isCurrent = false
 		this.isFinalPath = false
 	}
 
@@ -125,47 +123,26 @@ class Cell {
 	show() {
 		const x = this.x * w
 		const y = this.y * w
+
 		stroke(0)
 		if (this.walls[0]) line(x, y, x + w, y)
 		if (this.walls[1]) line(x + w, y, x + w, y + w)
 		if (this.walls[2]) line(x + w, y + w, x, y + w)
 		if (this.walls[3]) line(x, y + w, x, y)
+
 		if (this.visited) {
 			noStroke()
 			fill(238, 239, 240)
-			rect(x, y, w, w)
-		}
-		// Draw cells in open set with a different color
-		if (this.inOpenSet) {
-			noStroke()
-			fill(30, 144, 255) // Blue color
-			rect(x, y, w, w)
-		}
-
-		// Draw cells in closed set with a different color
-		if (this.inClosedSet) {
-			noStroke()
-			fill(255, 165, 0) // Orange color
 			rect(x, y, w, w)
 		}
 
 		// Draw cells in the final path with a different color
 		if (this.isFinalPath) {
 			noStroke()
-			fill(50, 205, 50) // Green color
+			fill(40, 110, 200, 200)
 			rect(x, y, w, w)
 		}
 	}
-}
-function resetPathProperties() {
-	grid.forEach((row) => {
-		row.forEach((cell) => {
-			cell.inOpenSet = false
-			cell.inClosedSet = false
-			cell.isCurrent = false
-			cell.isFinalPath = false
-		})
-	})
 }
 
 /**
@@ -194,24 +171,19 @@ function aStar() {
 		// Find the cell with the lowest f score in the openSet
 		let current = openSet[0]
 		let currentIndex = 0
-		current.inOpenSet = true
 
 		for (let i = 0; i < openSet.length; i += 1) {
 			const f = current.g + current.heuristic
 			const otherF = openSet[i].g + openSet[i].h
 			if (otherF < f) {
-				current.isCurrent = false
 				current = openSet[i]
 				currentIndex = i
-				current.isCurrent = true
 			}
 		}
 
 		// Remove the current cell from the openSet and add it to the closedSet
 		openSet.splice(currentIndex, 1)
 		closedSet.push(current)
-		current.inOpenSet = false
-		current.inClosedSet = true
 
 		// Check if the current cell is the end cell
 		if (current === end) {
@@ -258,7 +230,6 @@ function aStar() {
 				neighbor.h = heuristic(neighbor, end)
 				neighbor.f = neighbor.g + neighbor.h
 				neighbor.previous = current
-				neighbor.inOpenSet = true
 			}
 		}
 	}
