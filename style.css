@@ -1,0 +1,21 @@
+*{
+    background-color: #aaaaaa;
+
+    padding: auto;
+    margin: 0;
+    
+    font-family: "JetBrains Mono", monospace;
+    font-optical-sizing: auto;
+    font-weight: 500;
+    font-style: normal;
+}
+canvas {
+    border: 1px solid black;
+    display: block;
+    margin: 0 auto;
+    background-color: darkcyan;
+}
+#controls {
+    text-align: center;
+    margin: 20px
+}
