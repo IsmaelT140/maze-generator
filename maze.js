@@ -8,9 +8,9 @@ const logStyles = [
 	"font-weight: 500",
 	"font-style: normal",
 ].join(";")
-const rows = 5
-const cols = 5
-const cellSize = 50
+const rows = 20
+const cols = 30
+const cellSize = 40
 const wallWidth = 5
 let grid = Array.from({ length: rows }, () =>
 	Array.from({ length: cols }, () => ({
@@ -70,16 +70,6 @@ function drawGrid() {
 	}
 }
 
-function getRandomIndex(array) {
-	if (!Array.isArray(array)) {
-		throw new Error("Input must be an array")
-	}
-	if (array.length === 0) {
-		return -1
-	}
-	return Math.floor(Math.random() * array.length)
-}
-
 async function startAlgorithm(algorithm) {
 	drawGrid()
 
@@ -104,23 +94,44 @@ document.getElementById("startButton").addEventListener("click", () => {
 	startAlgorithm(algorithm)
 })
 
+function getRandomIndex(array) {
+	if (!Array.isArray(array)) {
+		throw new Error("Input must be an array")
+	}
+	if (array.length === 0) {
+		return -1
+	}
+	return Math.floor(Math.random() * array.length)
+}
+
+function arrayIncludesCell(array, cell) {
+	return array.some((item) => item[0] === cell[0] && item[1] === cell[1])
+}
+
+function isCellValid(row, col, visited) {
+	const validRow = row >= 0 && row < rows
+	const validCol = col >= 0 && col < cols
+	const validCell = validRow && validCol
+
+	if (validCell) {
+		const cellVisited = grid[row][col].visited
+		return cellVisited === visited
+	}
+	return false
+}
+
 function getNeighbors(row, col, visited = false) {
-	// ! The visited property is not being properly checked in the conditional statements.
 	const neighbors = []
 
-	if (row > 0 && grid[row - 1][col].visited === visited)
-		neighbors.push([row - 1, col])
+	if (isCellValid(row - 1, col, visited)) neighbors.push([row - 1, col])
 
-	if (col < cols - 1 && grid[row][col + 1].visited === visited)
-		neighbors.push([row, col + 1])
+	if (isCellValid(row, col + 1, visited)) neighbors.push([row, col + 1])
 
-	if (row < rows - 1 && grid[row + 1][col].visited === visited)
-		neighbors.push([row + 1, col])
+	if (isCellValid(row + 1, col, visited)) neighbors.push([row + 1, col])
 
-	if (col > 0 && grid[row][col - 1].visited === visited)
-		neighbors.push([row, col - 1])
+	if (isCellValid(row, col - 1, visited)) neighbors.push([row, col - 1])
 
-	// console.log(`Neighbors for row: ${row}, col: ${col}: ${neighbors}`)
+	// console.log(row, col, { neighbors })
 	// console.assert(
 	// 	neighbors.forEach((neighbor) => {
 	// 		const [row, col] = neighbor
@@ -179,7 +190,7 @@ async function depthFirstSearch() {
 			setCellState(nextRow, nextCol, { visited: true })
 			stack.push([nextRow, nextCol])
 		}
-		await new Promise((resolve) => setTimeout(resolve, 10))
+		await new Promise((resolve) => setTimeout(resolve, 5))
 	}
 	console.log(`%cDone!`, logStyles)
 }
@@ -206,18 +217,13 @@ async function randomizedPrims() {
 			if (grid[row][col].visited !== grid[nextRow][nextCol].visited) {
 				setCellState(row, col, { visited: true })
 				removeWalls(row, col, nextRow, nextCol)
-				// ! Stack is having already visited cells added.
-				stack = [...new Set([...stack, ...getNeighbors(row, col)])]
+				getNeighbors(row, col).forEach((neighbor) => {
+					if (!arrayIncludesCell(stack, neighbor)) {
+						stack.push(neighbor)
+					}
+				})
 				await new Promise((resolve) => setTimeout(resolve, 5))
 			}
-
-			// console.assert(
-			// 	stack.forEach((cell) => {
-			// 		const [row, col] = cell
-			// 		return !grid[row][col].visited
-			// 	}),
-			// 	`Stack includes cells that have already been visited.`
-			// )
 		}
 	}
 	console.log(`%cDone!`, logStyles)
