@@ -8,10 +8,10 @@ const logStyles = [
 	"font-weight: 500",
 	"font-style: normal",
 ].join(";")
-const rows = 20
-const cols = 30
+const rows = 10
+const cols = 15
 const cellSize = 40
-const wallWidth = 5
+const wallWidth = 40
 let grid = Array.from({ length: rows }, () =>
 	Array.from({ length: cols }, () => ({
 		top: true,
@@ -25,8 +25,10 @@ let grid = Array.from({ length: rows }, () =>
 const canvas = document.getElementById("mazeCanvas")
 const ctx = canvas.getContext("2d")
 
-canvas.width = cols * cellSize + wallWidth
-canvas.height = rows * cellSize + wallWidth
+// canvas.width = cols * cellSize + wallWidth
+// canvas.height = rows * cellSize + wallWidth
+canvas.width = cols * cellSize + (cols + 1) * wallWidth
+canvas.height = rows * cellSize + (rows + 1) * wallWidth
 
 ctx.lineWidth = wallWidth
 
@@ -36,26 +38,66 @@ function drawGrid() {
 	for (let row = 0; row < rows; row += 1) {
 		for (let col = 0; col < cols; col += 1) {
 			const cell = grid[row][col]
-			const x = col * cellSize
-			const y = row * cellSize
+			const x = col * cellSize + (col + 1) * wallWidth
+			const y = row * cellSize + (row + 1) * wallWidth
+			const halfLineWidth = Math.floor(wallWidth / 2)
+
+			let cellAbove,
+				cellRight,
+				cellLeft,
+				cellBelow = null
+
+			if (isCellValid(row - 1, col, null, true)) {
+				cellAbove = true
+			}
+			if (isCellValid(row, col + 1, null, true)) {
+				cellRight = true
+			}
+			if (isCellValid(row + 1, col, null, true)) {
+				cellBelow = true
+			}
+			if (isCellValid(row, col - 1, null, true)) {
+				cellLeft = true
+			}
 
 			ctx.beginPath()
 			ctx.lineJoin = "round"
 			ctx.lineCap = "round"
 
-			if (cell.top) ctx.moveTo(x, y), ctx.lineTo(x + cellSize, y)
+			if (cell.top) {
+				ctx.moveTo(x - halfLineWidth, y - halfLineWidth)
+				ctx.lineTo(x + cellSize + halfLineWidth, y - halfLineWidth)
+			}
 
-			if (cell.right)
-				ctx.moveTo(x + cellSize, y),
-					ctx.lineTo(x + cellSize, y + cellSize)
+			if (cell.right && !cellRight) {
+				ctx.moveTo(x + cellSize + halfLineWidth, y - halfLineWidth)
+				ctx.lineTo(
+					x + cellSize + halfLineWidth,
+					y + cellSize + halfLineWidth
+				)
+			}
 
-			if (cell.bottom)
-				ctx.moveTo(x, y + cellSize),
-					ctx.lineTo(x + cellSize, y + cellSize)
+			if (cell.bottom && !cellBelow) {
+				ctx.moveTo(x - halfLineWidth, y + cellSize + halfLineWidth)
+				ctx.lineTo(
+					x + cellSize + halfLineWidth,
+					y + cellSize + halfLineWidth
+				)
+			}
 
-			if (cell.left) ctx.moveTo(x, y), ctx.lineTo(x, y + cellSize)
+			if (cell.left) {
+				ctx.moveTo(x - halfLineWidth, y - halfLineWidth)
+				ctx.lineTo(x - halfLineWidth, y + cellSize + halfLineWidth)
+			}
 
 			ctx.stroke()
+
+			/*
+			TODO: Fix the coloring and highlighting for the cells and add highlighting groups.
+				? Open/Closed sets, Visited/Unvisited, CurrentCell, Frontier
+			TODO: Add user input for adjusting maze size.
+			TODO: Add option to download the mazes.
+			*/
 
 			// if (cell.visited || cell.highlight) {
 			// 	ctx.fillStyle = cell.highlight ? "yellow" : "lightblue"
@@ -108,10 +150,12 @@ function arrayIncludesCell(array, cell) {
 	return array.some((item) => item[0] === cell[0] && item[1] === cell[1])
 }
 
-function isCellValid(row, col, visited) {
+function isCellValid(row, col, visited, validityOnly) {
 	const validRow = row >= 0 && row < rows
 	const validCol = col >= 0 && col < cols
 	const validCell = validRow && validCol
+
+	if (validityOnly) return validCell
 
 	if (validCell) {
 		const cellVisited = grid[row][col].visited

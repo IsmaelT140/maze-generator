@@ -13,7 +13,7 @@ canvas {
     border: 1px solid black;
     display: block;
     margin: 0 auto;
-    background-color: darkcyan;
+    background-color: #2764A9;
 }
 #controls {
     text-align: center;
