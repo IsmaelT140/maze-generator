@@ -8,33 +8,45 @@ const logStyles = [
 	"font-weight: 500",
 	"font-style: normal",
 ].join(";")
-const rows = 10
-const cols = 15
-const cellSize = 40
-const wallWidth = 40
-let grid = Array.from({ length: rows }, () =>
-	Array.from({ length: cols }, () => ({
-		top: true,
-		right: true,
-		bottom: true,
-		left: true,
-		visited: false,
-		highlight: false,
-	}))
-)
 const canvas = document.getElementById("mazeCanvas")
-const ctx = canvas.getContext("2d")
 
-// canvas.width = cols * cellSize + wallWidth
-// canvas.height = rows * cellSize + wallWidth
-canvas.width = cols * cellSize + (cols + 1) * wallWidth
-canvas.height = rows * cellSize + (rows + 1) * wallWidth
+const lightShades = "#E4E8EC"
+const lightAccent = "#7BA6C2"
+const mainColor = "#396FB8"
+const darkAccent = "#666C85"
+const darkShades = "#1A1D30"
 
-ctx.lineWidth = wallWidth
+const rows = 10
+const cols = 10
+const cellSize = 40
+const wallWidth = 20
 
-function drawGrid() {
-	ctx.clearRect(0, 0, canvas.width, canvas.height)
+const canvasWidth = cols * cellSize + (cols + 1) * wallWidth
+const canvasHeight = rows * cellSize + (rows + 1) * wallWidth
 
+let grid = null
+
+function setup() {
+	createCanvas(canvasWidth, canvasHeight)
+
+	strokeWeight(wallWidth)
+	stroke(0)
+
+	grid = Array.from({ length: rows }, () =>
+		Array.from({ length: cols }, () => ({
+			top: true,
+			right: true,
+			bottom: true,
+			left: true,
+			visited: false,
+			highlight: false,
+		}))
+	)
+	// ? Maybe set up the initial cell as the current cell here?
+}
+
+function draw() {
+	background(darkAccent)
 	for (let row = 0; row < rows; row += 1) {
 		for (let col = 0; col < cols; col += 1) {
 			const cell = grid[row][col]
@@ -60,37 +72,43 @@ function drawGrid() {
 				cellLeft = true
 			}
 
-			ctx.beginPath()
-			ctx.lineJoin = "round"
-			ctx.lineCap = "round"
+			stroke(darkShades)
 
 			if (cell.top) {
-				ctx.moveTo(x - halfLineWidth, y - halfLineWidth)
-				ctx.lineTo(x + cellSize + halfLineWidth, y - halfLineWidth)
+				line(
+					x - halfLineWidth,
+					y - halfLineWidth,
+					x + cellSize + halfLineWidth,
+					y - halfLineWidth
+				)
 			}
 
 			if (cell.right && !cellRight) {
-				ctx.moveTo(x + cellSize + halfLineWidth, y - halfLineWidth)
-				ctx.lineTo(
+				line(
+					x + cellSize + halfLineWidth,
+					y - halfLineWidth,
 					x + cellSize + halfLineWidth,
 					y + cellSize + halfLineWidth
 				)
 			}
 
 			if (cell.bottom && !cellBelow) {
-				ctx.moveTo(x - halfLineWidth, y + cellSize + halfLineWidth)
-				ctx.lineTo(
+				line(
+					x - halfLineWidth,
+					y + cellSize + halfLineWidth,
 					x + cellSize + halfLineWidth,
 					y + cellSize + halfLineWidth
 				)
 			}
 
 			if (cell.left) {
-				ctx.moveTo(x - halfLineWidth, y - halfLineWidth)
-				ctx.lineTo(x - halfLineWidth, y + cellSize + halfLineWidth)
+				line(
+					x - halfLineWidth,
+					y - halfLineWidth,
+					x - halfLineWidth,
+					y + cellSize + halfLineWidth
+				)
 			}
-
-			ctx.stroke()
 
 			/*
 			TODO: Fix the coloring and highlighting for the cells and add highlighting groups.
@@ -99,21 +117,27 @@ function drawGrid() {
 			TODO: Add option to download the mazes.
 			*/
 
-			// if (cell.visited || cell.highlight) {
-			// 	ctx.fillStyle = cell.highlight ? "yellow" : "lightblue"
-			// 	ctx.fillRect(
-			// 		x + wallWidth / 2,
-			// 		y + wallWidth / 2,
-			// 		cellSize - wallWidth,
-			// 		cellSize - wallWidth
-			// 	)
+			// if (cell.highlight) {
+			// 	let fillColor = null
+			// 	if (cell.highlight === "current") {
+			// 		fillColor = lightAccent
+			// 	}
+			// 	if (cell.highlight === "openSet") {
+			// 		fillColor = lightShades
+			// 	}
+			// 	if (cell.highlight === "closedSet") {
+			// 		fillColor = mainColor
+			// 	}
+			// 	noStroke()
+			// 	fill(fillColor)
+			// 	square(x, y, cellSize)
 			// }
 		}
 	}
 }
 
 async function startAlgorithm(algorithm) {
-	drawGrid()
+	draw()
 
 	switch (algorithm) {
 		case "generateDepthFirstSearch":
@@ -128,7 +152,7 @@ async function startAlgorithm(algorithm) {
 			return
 	}
 
-	drawGrid()
+	draw()
 }
 
 document.getElementById("startButton").addEventListener("click", () => {
@@ -175,14 +199,6 @@ function getNeighbors(row, col, visited = false) {
 
 	if (isCellValid(row, col - 1, visited)) neighbors.push([row, col - 1])
 
-	// console.log(row, col, { neighbors })
-	// console.assert(
-	// 	neighbors.forEach((neighbor) => {
-	// 		const [row, col] = neighbor
-	// 		return grid[row][col].visited === visited
-	// 	}),
-	// 	`Expected neighbors to be visited: ${visited}`
-	// )
 	return neighbors
 }
 
@@ -221,7 +237,7 @@ async function depthFirstSearch() {
 	stack.push([0, 0])
 
 	while (stack.length > 0) {
-		drawGrid()
+		draw()
 		const [row, col] = stack.pop()
 		setCellState(row, col, { visited: true })
 
@@ -246,7 +262,7 @@ async function randomizedPrims() {
 	stack.push(...getNeighbors(0, 0))
 
 	while (stack.length > 0) {
-		drawGrid()
+		draw()
 
 		const [row, col] = stack.splice(getRandomIndex(stack), 1)[0]
 

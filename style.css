@@ -1,5 +1,10 @@
 *{
-    background-color: #aaaaaa;
+    --light-shades: #E4E8EC;
+    --light-accent: #7BA6C2;
+    --main-color: #396FB8;
+    --dark-accent: #666C85;
+    --dark-shades: #1A1D30;
+    background-color: var(--light-shades);
 
     padding: auto;
     margin: 0;
@@ -8,12 +13,12 @@
     font-optical-sizing: auto;
     font-weight: 500;
     font-style: normal;
+    color: var(--dark-shades);
 }
 canvas {
     border: 1px solid black;
     display: block;
     margin: 0 auto;
-    background-color: #2764A9;
 }
 #controls {
     text-align: center;
