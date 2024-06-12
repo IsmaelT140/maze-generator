@@ -10,16 +10,16 @@ const logStyles = [
 ].join(";")
 const canvas = document.getElementById("mazeCanvas")
 
-const lightShades = "#E4E8EC"
-const lightAccent = "#7BA6C2"
-const mainColor = "#396FB8"
-const darkAccent = "#666C85"
-const darkShades = "#1A1D30"
+const athensGray = "#E4E8EC"
+const glacier = "#7BA6C2"
+const azure = "#396FB8"
+const stormGray = "#666C85"
+const mirage = "#1A1D30"
 
 const rows = 10
 const cols = 10
 const cellSize = 40
-const wallWidth = 20
+const wallWidth = 40
 
 const canvasWidth = cols * cellSize + (cols + 1) * wallWidth
 const canvasHeight = rows * cellSize + (rows + 1) * wallWidth
@@ -42,11 +42,10 @@ function setup() {
 			highlight: false,
 		}))
 	)
-	// ? Maybe set up the initial cell as the current cell here?
 }
 
 function draw() {
-	background(darkAccent)
+	background(stormGray)
 	for (let row = 0; row < rows; row += 1) {
 		for (let col = 0; col < cols; col += 1) {
 			const cell = grid[row][col]
@@ -72,13 +71,30 @@ function draw() {
 				cellLeft = true
 			}
 
-			stroke(darkShades)
+			let cellColor = null
+			if (cell.highlight) {
+				if (cell.highlight === "current") {
+					cellColor = athensGray
+				}
+				if (cell.highlight === "openSet") {
+					cellColor = glacier
+				}
+				if (cell.highlight === "closedSet") {
+					cellColor = azure
+				}
+				noStroke()
+				fill(cellColor)
+				square(x, y, cellSize)
+			}
+
+			stroke(mirage)
+			strokeCap(SQUARE)
 
 			if (cell.top) {
 				line(
-					x - halfLineWidth,
+					x - wallWidth,
 					y - halfLineWidth,
-					x + cellSize + halfLineWidth,
+					x + cellSize + wallWidth,
 					y - halfLineWidth
 				)
 			}
@@ -86,17 +102,17 @@ function draw() {
 			if (cell.right && !cellRight) {
 				line(
 					x + cellSize + halfLineWidth,
-					y - halfLineWidth,
+					y - wallWidth,
 					x + cellSize + halfLineWidth,
-					y + cellSize + halfLineWidth
+					y + cellSize + wallWidth
 				)
 			}
 
 			if (cell.bottom && !cellBelow) {
 				line(
-					x - halfLineWidth,
+					x - wallWidth,
 					y + cellSize + halfLineWidth,
-					x + cellSize + halfLineWidth,
+					x + cellSize + wallWidth,
 					y + cellSize + halfLineWidth
 				)
 			}
@@ -104,34 +120,41 @@ function draw() {
 			if (cell.left) {
 				line(
 					x - halfLineWidth,
-					y - halfLineWidth,
+					y - wallWidth,
 					x - halfLineWidth,
-					y + cellSize + halfLineWidth
+					y + cellSize + wallWidth
 				)
 			}
 
-			/*
-			TODO: Fix the coloring and highlighting for the cells and add highlighting groups.
-				? Open/Closed sets, Visited/Unvisited, CurrentCell, Frontier
-			TODO: Add user input for adjusting maze size.
-			TODO: Add option to download the mazes.
-			*/
+			if (cellColor) {
+				stroke(cellColor)
 
-			// if (cell.highlight) {
-			// 	let fillColor = null
-			// 	if (cell.highlight === "current") {
-			// 		fillColor = lightAccent
-			// 	}
-			// 	if (cell.highlight === "openSet") {
-			// 		fillColor = lightShades
-			// 	}
-			// 	if (cell.highlight === "closedSet") {
-			// 		fillColor = mainColor
-			// 	}
-			// 	noStroke()
-			// 	fill(fillColor)
-			// 	square(x, y, cellSize)
-			// }
+				if (!cell.top) {
+					line(x, y - halfLineWidth, x + cellSize, y - halfLineWidth)
+				}
+
+				if (!cell.right && !cellRight) {
+					line(
+						x + cellSize + halfLineWidth,
+						y,
+						x + cellSize + halfLineWidth,
+						y + cellSize
+					)
+				}
+
+				if (!cell.bottom && !cellBelow) {
+					line(
+						x,
+						y + cellSize + halfLineWidth,
+						x + cellSize,
+						y + cellSize + halfLineWidth
+					)
+				}
+
+				if (!cell.left) {
+					line(x - halfLineWidth, y, x - halfLineWidth, y + cellSize)
+				}
+			}
 		}
 	}
 }
@@ -233,24 +256,33 @@ function removeWalls(row, col, nextRow, nextCol) {
 async function depthFirstSearch() {
 	let stack = []
 
-	setCellState(0, 0, { visited: true })
+	setCellState(0, 0, { visited: true, highlight: "current" })
 	stack.push([0, 0])
 
 	while (stack.length > 0) {
-		draw()
 		const [row, col] = stack.pop()
-		setCellState(row, col, { visited: true })
+		setCellState(row, col, { highlight: "closedSet" })
+		draw()
 
 		const neighbors = getNeighbors(row, col)
 
 		if (Array.isArray(neighbors) && neighbors.length > 0) {
 			stack.push([row, col])
+
 			const [nextRow, nextCol] = neighbors[getRandomIndex(neighbors)]
+
 			removeWalls(row, col, nextRow, nextCol)
-			setCellState(nextRow, nextCol, { visited: true })
+			setCellState(nextRow, nextCol, {
+				visited: true,
+				highlight: "current",
+			})
 			stack.push([nextRow, nextCol])
+
+			setCellState(row, col, { highlight: "openSet" })
 		}
-		await new Promise((resolve) => setTimeout(resolve, 5))
+		draw()
+
+		await new Promise((resolve) => setTimeout(resolve, 75))
 	}
 	console.log(`%cDone!`, logStyles)
 }
@@ -258,33 +290,37 @@ async function depthFirstSearch() {
 async function randomizedPrims() {
 	let stack = []
 
-	setCellState(0, 0, { visited: true })
-	stack.push(...getNeighbors(0, 0))
+	setCellState(0, 0, { visited: true, highlight: "closedSet" })
+	draw()
+
+	getNeighbors(0, 0).forEach((cell) => {
+		const [row, col] = cell
+		stack.push([row, col])
+		setCellState(row, col, { highlight: "openSet" })
+	})
 
 	while (stack.length > 0) {
-		draw()
-
 		const [row, col] = stack.splice(getRandomIndex(stack), 1)[0]
+		setCellState(row, col, { highlight: "current" })
+
+		draw()
 
 		const neighbors = getNeighbors(row, col, true)
 
-		if (Array.isArray(neighbors) && neighbors.length > 0) {
-			const [nextRow, nextCol] = neighbors.splice(
-				getRandomIndex(neighbors),
-				1
-			)[0]
+		const [nextRow, nextCol] = neighbors.splice(
+			getRandomIndex(neighbors),
+			1
+		)[0]
 
-			if (grid[row][col].visited !== grid[nextRow][nextCol].visited) {
-				setCellState(row, col, { visited: true })
-				removeWalls(row, col, nextRow, nextCol)
-				getNeighbors(row, col).forEach((neighbor) => {
-					if (!arrayIncludesCell(stack, neighbor)) {
-						stack.push(neighbor)
-					}
-				})
-				await new Promise((resolve) => setTimeout(resolve, 5))
+		setCellState(row, col, { visited: true, highlight: "closedSet" })
+		removeWalls(row, col, nextRow, nextCol)
+		getNeighbors(row, col).forEach((neighbor) => {
+			if (!arrayIncludesCell(stack, neighbor)) {
+				stack.push(neighbor)
+				setCellState(neighbor[0], neighbor[1], { highlight: "openSet" })
 			}
-		}
+		})
+		await new Promise((resolve) => setTimeout(resolve, 75))
 	}
 	console.log(`%cDone!`, logStyles)
 }
