@@ -16,10 +16,10 @@ const azure = "#396FB8"
 const stormGray = "#666C85"
 const mirage = "#1A1D30"
 
-const rows = 10
-const cols = 10
-const cellSize = 40
-const wallWidth = 40
+const rows = 20
+const cols = 30
+const cellSize = 30
+const wallWidth = 10
 
 const canvasWidth = cols * cellSize + (cols + 1) * wallWidth
 const canvasHeight = rows * cellSize + (rows + 1) * wallWidth
@@ -27,7 +27,7 @@ const canvasHeight = rows * cellSize + (rows + 1) * wallWidth
 let grid = null
 
 function setup() {
-	createCanvas(canvasWidth, canvasHeight)
+	createCanvas(canvasWidth, canvasHeight, canvas)
 
 	strokeWeight(wallWidth)
 	stroke(0)
@@ -44,8 +44,16 @@ function setup() {
 	)
 }
 
+function initGrid() {
+	return Array.from({ length: this.rows }, () =>
+		Array.from({ length: this.cols }, () => false)
+	)
+}
+let random = initGrid()
+console.log(random)
+
 function draw() {
-	background(stormGray)
+	background(mirage)
 	for (let row = 0; row < rows; row += 1) {
 		for (let col = 0; col < cols; col += 1) {
 			const cell = grid[row][col]
@@ -81,6 +89,9 @@ function draw() {
 				}
 				if (cell.highlight === "closedSet") {
 					cellColor = azure
+				}
+				if (cell.highlight === "path") {
+					cellColor = stormGray
 				}
 				noStroke()
 				fill(cellColor)
@@ -183,6 +194,12 @@ document.getElementById("startButton").addEventListener("click", () => {
 	startAlgorithm(algorithm)
 })
 
+// ! Grid can be cleared while it is being generated.
+document.getElementById("clearButton").addEventListener("click", () => {
+	setup()
+	draw()
+})
+
 function getRandomIndex(array) {
 	if (!Array.isArray(array)) {
 		throw new Error("Input must be an array")
@@ -282,7 +299,7 @@ async function depthFirstSearch() {
 		}
 		draw()
 
-		await new Promise((resolve) => setTimeout(resolve, 75))
+		await new Promise((resolve) => setTimeout(resolve, 1))
 	}
 	console.log(`%cDone!`, logStyles)
 }
@@ -301,7 +318,6 @@ async function randomizedPrims() {
 
 	while (stack.length > 0) {
 		const [row, col] = stack.splice(getRandomIndex(stack), 1)[0]
-		setCellState(row, col, { highlight: "current" })
 
 		draw()
 
@@ -320,7 +336,7 @@ async function randomizedPrims() {
 				setCellState(neighbor[0], neighbor[1], { highlight: "openSet" })
 			}
 		})
-		await new Promise((resolve) => setTimeout(resolve, 75))
+		await new Promise((resolve) => setTimeout(resolve, 1))
 	}
 	console.log(`%cDone!`, logStyles)
 }
