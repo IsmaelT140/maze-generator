@@ -18,9 +18,9 @@ const stormGray = "#666C85"
 const mirage = "#1A1D30"
 
 const rows = 20
-const cols = 20
-const cellSize = 20
-const wallWidth = 20
+const cols = 30
+const cellSize = 30
+const wallWidth = 5
 
 const mazeStart = [0, 0]
 const mazeEnd = [rows - 1, cols - 1]
@@ -406,17 +406,19 @@ async function pathfindingDFS() {
 
 		draw()
 
+		if (exploredNodes[row][col] === false) {
+			exploredNodes[row][col] = true
+		}
+
+		if ([row, col].toString() === mazeEnd.toString()) {
+			setCellState(row, col, { highlight: "closedSet" })
+			return reconstructPath(pathMap)
+		}
+
 		const neighbors = getPathfindingNeighbors(row, col)
 
 		for (const neighbor of neighbors) {
 			let [neighborRow, neighborCol] = neighbor
-
-			if (neighbor.toString() === mazeEnd.toString()) {
-				pathMap.set(mazeEnd.toString(), [row, col])
-				exploredNodes[mazeEnd[0]][mazeEnd[1]] = true
-				setCellState(row, col, { highlight: "closedSet" })
-				return reconstructPath(pathMap)
-			}
 
 			if (exploredNodes[neighborRow][neighborCol] === false) {
 				exploredNodes[neighborRow][neighborCol] = true
@@ -436,8 +438,8 @@ async function pathfindingDFS() {
 				pathMap.set(nextNode.toString(), [row, col])
 			}
 		}
-		await new Promise((resolve) => setTimeout(resolve, 1))
 		setCellState(row, col, { highlight: "closedSet" })
+		await new Promise((resolve) => setTimeout(resolve, 50))
 	}
 	console.error("No path found.")
 	return false
