@@ -9,6 +9,7 @@ const logStyles = [
 	"font-style: normal",
 ].join(";")
 const canvas = document.getElementById("mazeCanvas")
+const mazeDiv = document.getElementById("mazeDiv")
 
 const athensGray = "#E4E8EC"
 const glacier = "#7BA6C2"
@@ -17,40 +18,42 @@ const stormGray = "#666C85"
 const mirage = "#1A1D30"
 
 const rows = 20
-const cols = 30
-const cellSize = 30
-const wallWidth = 10
+const cols = 20
+const cellSize = 20
+const wallWidth = 20
+
+const mazeStart = [0, 0]
+const mazeEnd = [rows - 1, cols - 1]
 
 const canvasWidth = cols * cellSize + (cols + 1) * wallWidth
 const canvasHeight = rows * cellSize + (rows + 1) * wallWidth
 
-let grid = null
+let grid = initGrid()
+let exploredNodes = initExploredNodesArray()
+
+function initGrid() {
+	return Array.from({ length: rows }, () =>
+		Array.from({ length: cols }, () => ({
+			top: true,
+			right: true,
+			bottom: true,
+			left: true,
+			highlight: false,
+		}))
+	)
+}
+function initExploredNodesArray() {
+	return Array.from({ length: rows }, () =>
+		Array.from({ length: cols }, () => false)
+	)
+}
 
 function setup() {
 	createCanvas(canvasWidth, canvasHeight, canvas)
 
 	strokeWeight(wallWidth)
 	stroke(0)
-
-	grid = Array.from({ length: rows }, () =>
-		Array.from({ length: cols }, () => ({
-			top: true,
-			right: true,
-			bottom: true,
-			left: true,
-			visited: false,
-			highlight: false,
-		}))
-	)
 }
-
-function initGrid() {
-	return Array.from({ length: this.rows }, () =>
-		Array.from({ length: this.cols }, () => false)
-	)
-}
-let random = initGrid()
-console.log(random)
 
 function draw() {
 	background(mirage)
@@ -176,9 +179,11 @@ async function startAlgorithm(algorithm) {
 	switch (algorithm) {
 		case "generateDepthFirstSearch":
 			await depthFirstSearch()
+			await pathfindingDFS()
 			break
 		case "generateRandomizedPrims":
 			await randomizedPrims()
+			await pathfindingDFS()
 			break
 
 		default:
@@ -194,7 +199,6 @@ document.getElementById("startButton").addEventListener("click", () => {
 	startAlgorithm(algorithm)
 })
 
-// ! Grid can be cleared while it is being generated.
 document.getElementById("clearButton").addEventListener("click", () => {
 	setup()
 	draw()
@@ -222,8 +226,7 @@ function isCellValid(row, col, visited, validityOnly) {
 	if (validityOnly) return validCell
 
 	if (validCell) {
-		const cellVisited = grid[row][col].visited
-		return cellVisited === visited
+		return exploredNodes[row][col] === visited
 	}
 	return false
 }
@@ -238,6 +241,26 @@ function getNeighbors(row, col, visited = false) {
 	if (isCellValid(row + 1, col, visited)) neighbors.push([row + 1, col])
 
 	if (isCellValid(row, col - 1, visited)) neighbors.push([row, col - 1])
+
+	return neighbors
+}
+
+function getPathfindingNeighbors(row, col, visited = false) {
+	const neighbors = []
+	let cell = grid[row][col]
+
+	if (!cell.top) {
+		if (isCellValid(row - 1, col, visited)) neighbors.push([row - 1, col])
+	}
+	if (!cell.right) {
+		if (isCellValid(row, col + 1, visited)) neighbors.push([row, col + 1])
+	}
+	if (!cell.bottom) {
+		if (isCellValid(row + 1, col, visited)) neighbors.push([row + 1, col])
+	}
+	if (!cell.left) {
+		if (isCellValid(row, col - 1, visited)) neighbors.push([row, col - 1])
+	}
 
 	return neighbors
 }
@@ -270,10 +293,30 @@ function removeWalls(row, col, nextRow, nextCol) {
 	}
 }
 
+function reconstructPath(pathMap) {
+	let path = []
+	let current = mazeEnd
+
+	console.log(pathMap)
+
+	while (current) {
+		path.push(current)
+		current = pathMap.get(current.toString())
+	}
+
+	path = path.reverse()
+	console.log(path)
+
+	return path
+}
+
 async function depthFirstSearch() {
 	let stack = []
 
-	setCellState(0, 0, { visited: true, highlight: "current" })
+	exploredNodes = initExploredNodesArray()
+	exploredNodes[0][0] = true
+	setCellState(0, 0, { highlight: "current" })
+
 	stack.push([0, 0])
 
 	while (stack.length > 0) {
@@ -289,8 +332,9 @@ async function depthFirstSearch() {
 			const [nextRow, nextCol] = neighbors[getRandomIndex(neighbors)]
 
 			removeWalls(row, col, nextRow, nextCol)
+
+			exploredNodes[nextRow][nextCol] = true
 			setCellState(nextRow, nextCol, {
-				visited: true,
 				highlight: "current",
 			})
 			stack.push([nextRow, nextCol])
@@ -307,7 +351,9 @@ async function depthFirstSearch() {
 async function randomizedPrims() {
 	let stack = []
 
-	setCellState(0, 0, { visited: true, highlight: "closedSet" })
+	exploredNodes = initExploredNodesArray()
+	exploredNodes[0][0] = true
+	setCellState(0, 0, { highlight: "closedSet" })
 	draw()
 
 	getNeighbors(0, 0).forEach((cell) => {
@@ -328,7 +374,8 @@ async function randomizedPrims() {
 			1
 		)[0]
 
-		setCellState(row, col, { visited: true, highlight: "closedSet" })
+		exploredNodes[row][col] = true
+		setCellState(row, col, { highlight: "closedSet" })
 		removeWalls(row, col, nextRow, nextCol)
 		getNeighbors(row, col).forEach((neighbor) => {
 			if (!arrayIncludesCell(stack, neighbor)) {
@@ -339,4 +386,59 @@ async function randomizedPrims() {
 		await new Promise((resolve) => setTimeout(resolve, 1))
 	}
 	console.log(`%cDone!`, logStyles)
+}
+
+async function pathfindingDFS() {
+	console.log("Pathfinding DFS starting...")
+	let pathMap = new Map()
+
+	let stack = []
+	stack.push(mazeStart)
+
+	pathMap.set(mazeStart.toString(), null)
+
+	exploredNodes = initExploredNodesArray()
+	exploredNodes[0][0] = true
+
+	while (Array.isArray(stack) && stack.length > 0) {
+		const [row, col] = stack.pop()
+		setCellState(row, col, { highlight: "current" })
+
+		draw()
+
+		const neighbors = getPathfindingNeighbors(row, col)
+
+		for (const neighbor of neighbors) {
+			let [neighborRow, neighborCol] = neighbor
+
+			if (neighbor.toString() === mazeEnd.toString()) {
+				pathMap.set(mazeEnd.toString(), [row, col])
+				exploredNodes[mazeEnd[0]][mazeEnd[1]] = true
+				setCellState(row, col, { highlight: "closedSet" })
+				return reconstructPath(pathMap)
+			}
+
+			if (exploredNodes[neighborRow][neighborCol] === false) {
+				exploredNodes[neighborRow][neighborCol] = true
+				if (!arrayIncludesCell(stack, neighbor)) {
+					stack.push([row, col])
+					stack.push(neighbor)
+				}
+			}
+		}
+
+		if (Array.isArray(stack) && stack.length > 0) {
+			const nextNode = stack[stack.length - 1]
+			console.log(
+				`Current: ${row}, ${col}, Next: ${nextNode[0]}, ${nextNode[1]}`
+			)
+			if (!pathMap.has(nextNode.toString())) {
+				pathMap.set(nextNode.toString(), [row, col])
+			}
+		}
+		await new Promise((resolve) => setTimeout(resolve, 1))
+		setCellState(row, col, { highlight: "closedSet" })
+	}
+	console.error("No path found.")
+	return false
 }

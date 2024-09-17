@@ -36,9 +36,9 @@ html{
 }
 
 #controls {
-    
+    background-color: var(--dark-accent);
+    border: 1em solid var(--dark-shades);
     display: flex;
-    justify-content: left;
     align-items: center;
     text-align: center;
     padding: 1rem;
@@ -52,9 +52,13 @@ select#algorithmSelect{
         display: grid;
         grid-template-columns: 1fr 8fr 1fr;
         grid-template-rows: 1fr 2fr 5fr 1fr;
+        column-gap: 10px;
+        row-gap: 10px;
     }   
     #controls{
+        justify-content: center;
         grid-area: 2 / 2 / 3 / 3;
+        border-radius: 1em;
     }
     #maze{
         grid-area: 3 / 2 / 4 / 3;
@@ -64,11 +68,15 @@ select#algorithmSelect{
 @media screen and (min-width: 1200px) {
     #main{
         display: grid;
-        grid-template-columns: 1fr 3fr repeat(2, 1fr);
-        grid-template-rows: 1fr 3fr 1fr;
+        grid-template-columns: 1fr 5fr repeat(2, 1fr);
+        grid-template-rows: 1fr 5fr 1fr;
+        column-gap: 10px;
+        row-gap: 10px;
     }   
     #controls{
+        justify-content: left;
         grid-area: 2 / 3 / 3 / 4;
+        border-radius: 2em;
     }
     #maze{
         grid-area: 2 / 2 / 3 / 3;
