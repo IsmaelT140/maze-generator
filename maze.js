@@ -28,8 +28,8 @@ const mazeEnd = [rows - 1, cols - 1]
 const canvasWidth = cols * cellSize + (cols + 1) * wallWidth
 const canvasHeight = rows * cellSize + (rows + 1) * wallWidth
 
-let grid = initGrid()
-let exploredNodes = initExploredNodesArray()
+let grid = null
+let exploredNodes = null
 
 function initGrid() {
 	return Array.from({ length: rows }, () =>
@@ -49,6 +49,9 @@ function initExploredNodesArray() {
 }
 
 function setup() {
+	grid = initGrid()
+	exploredNodes = initExploredNodesArray()
+
 	createCanvas(canvasWidth, canvasHeight, canvas)
 
 	strokeWeight(wallWidth)
@@ -314,36 +317,32 @@ async function depthFirstSearch() {
 	let stack = []
 
 	exploredNodes = initExploredNodesArray()
-	exploredNodes[0][0] = true
-	setCellState(0, 0, { highlight: "current" })
 
 	stack.push([0, 0])
 
 	while (stack.length > 0) {
 		const [row, col] = stack.pop()
-		setCellState(row, col, { highlight: "closedSet" })
+		exploredNodes[row][col] = true
+		setCellState(row, col, { highlight: "current" })
+
 		draw()
+
+		await new Promise((resolve) => setTimeout(resolve, 50))
 
 		const neighbors = getNeighbors(row, col)
 
-		if (Array.isArray(neighbors) && neighbors.length > 0) {
-			stack.push([row, col])
-
-			const [nextRow, nextCol] = neighbors[getRandomIndex(neighbors)]
-
-			removeWalls(row, col, nextRow, nextCol)
-
-			exploredNodes[nextRow][nextCol] = true
-			setCellState(nextRow, nextCol, {
-				highlight: "current",
-			})
-			stack.push([nextRow, nextCol])
-
-			setCellState(row, col, { highlight: "openSet" })
+		if (!Array.isArray(neighbors) || !neighbors.length > 0) {
+			setCellState(row, col, { highlight: "closedSet" })
+			continue
 		}
-		draw()
 
-		await new Promise((resolve) => setTimeout(resolve, 1))
+		const [nextRow, nextCol] = neighbors[getRandomIndex(neighbors)]
+		removeWalls(row, col, nextRow, nextCol)
+
+		stack.push([row, col], [nextRow, nextCol])
+
+		setCellState(row, col, { highlight: "openSet" })
+		setCellState(nextRow, nextCol, { highlight: "openSet" })
 	}
 	console.log(`%cDone!`, logStyles)
 }
@@ -438,8 +437,8 @@ async function pathfindingDFS() {
 				pathMap.set(nextNode.toString(), [row, col])
 			}
 		}
-		setCellState(row, col, { highlight: "closedSet" })
 		await new Promise((resolve) => setTimeout(resolve, 50))
+		setCellState(row, col, { highlight: "closedSet" })
 	}
 	console.error("No path found.")
 	return false
