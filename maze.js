@@ -10,6 +10,8 @@ const logStyles = [
 ].join(";")
 const canvas = document.getElementById("mazeCanvas")
 const mazeDiv = document.getElementById("mazeDiv")
+const startButton = document.getElementById("startButton")
+const clearButton = document.getElementById("clearButton")
 
 const athensGray = "#E4E8EC"
 const glacier = "#7BA6C2"
@@ -19,11 +21,14 @@ const mirage = "#1A1D30"
 
 const rows = 20
 const cols = 30
-const cellSize = 30
+const cellSize = 25
 const wallWidth = 5
 
 const mazeStart = [0, 0]
 const mazeEnd = [rows - 1, cols - 1]
+
+const mazeGenerationSpeed = 20
+const pathfindingSpeed = 40
 
 const canvasWidth = cols * cellSize + (cols + 1) * wallWidth
 const canvasHeight = rows * cellSize + (rows + 1) * wallWidth
@@ -62,6 +67,8 @@ function draw() {
 	background(mirage)
 	for (let row = 0; row < rows; row += 1) {
 		for (let col = 0; col < cols; col += 1) {
+			// TODO: Fix the rendering for edge case where there is a visible line between cells.
+			// TODO: Fix the rendering issue that causes the walls to be colored non-centered.
 			const cell = grid[row][col]
 			const x = col * cellSize + (col + 1) * wallWidth
 			const y = row * cellSize + (row + 1) * wallWidth
@@ -174,37 +181,55 @@ function draw() {
 			}
 		}
 	}
+	// TODO: Add code to render the pathfinding algorithms visited cells, and the final path.
 }
 
-async function startAlgorithm(algorithm) {
+async function startAlgorithm(mazeAlgorithm, pathfindingAlgorithm) {
 	draw()
+	startButton.disabled = true
+	clearButton.disabled = true
 
-	switch (algorithm) {
+	switch (mazeAlgorithm) {
 		case "generateDepthFirstSearch":
 			await depthFirstSearch()
-			await pathfindingDFS()
 			break
 		case "generateRandomizedPrims":
 			await randomizedPrims()
+			break
+
+		default:
+			alert("Please select a valid maze generation algorithm.")
+			return
+	}
+
+	switch (pathfindingAlgorithm) {
+		case "depthFirstSearch":
 			await pathfindingDFS()
 			break
 
 		default:
-			alert("Please select a valid algorithm.")
+			alert("Please select a valid pathfinding algorithm.")
 			return
 	}
 
+	clearButton.disabled = false
 	draw()
 }
 
-document.getElementById("startButton").addEventListener("click", () => {
-	const algorithm = document.getElementById("algorithmSelect").value
-	startAlgorithm(algorithm)
-})
-
-document.getElementById("clearButton").addEventListener("click", () => {
+startButton.addEventListener("click", () => {
 	setup()
 	draw()
+	const mazeAlgorithm = document.getElementById("mazeAlgorithmSelect").value
+	const pathfindingAlgorithm = document.getElementById(
+		"pathfindingAlgorithmSelect"
+	).value
+	startAlgorithm(mazeAlgorithm, pathfindingAlgorithm)
+})
+
+clearButton.addEventListener("click", () => {
+	setup()
+	draw()
+	startButton.disabled = false
 })
 
 function getRandomIndex(array) {
@@ -327,7 +352,7 @@ async function depthFirstSearch() {
 
 		draw()
 
-		await new Promise((resolve) => setTimeout(resolve, 50))
+		await new Promise((resolve) => setTimeout(resolve, mazeGenerationSpeed))
 
 		const neighbors = getNeighbors(row, col)
 
@@ -382,7 +407,7 @@ async function randomizedPrims() {
 				setCellState(neighbor[0], neighbor[1], { highlight: "openSet" })
 			}
 		})
-		await new Promise((resolve) => setTimeout(resolve, 1))
+		await new Promise((resolve) => setTimeout(resolve, mazeGenerationSpeed))
 	}
 	console.log(`%cDone!`, logStyles)
 }
@@ -430,14 +455,12 @@ async function pathfindingDFS() {
 
 		if (Array.isArray(stack) && stack.length > 0) {
 			const nextNode = stack[stack.length - 1]
-			console.log(
-				`Current: ${row}, ${col}, Next: ${nextNode[0]}, ${nextNode[1]}`
-			)
+
 			if (!pathMap.has(nextNode.toString())) {
 				pathMap.set(nextNode.toString(), [row, col])
 			}
 		}
-		await new Promise((resolve) => setTimeout(resolve, 50))
+		await new Promise((resolve) => setTimeout(resolve, pathfindingSpeed))
 		setCellState(row, col, { highlight: "closedSet" })
 	}
 	console.error("No path found.")

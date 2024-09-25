@@ -19,17 +19,41 @@
 	<body>
 		<div id="main">
 			<div id="controls">
-				<select id="algorithmSelect" class="form-select">
-					<option value="none">Select Algorithm</option>
-					<option value="generateDepthFirstSearch">
-						Depth First Search
-					</option>
-					<option value="generateRandomizedPrims">
-						Randomized Prim's
-					</option>
-				</select>
-				<button id="startButton" class="btn btn-primary">Start</button>
-				<button id="clearButton" class="btn btn-danger">Clear</button>
+				<div id="mazeSelect">
+					<label for="mazeAlgorithmSelect"
+						>Generation Algorithm</label
+					>
+					<select id="mazeAlgorithmSelect" class="form-select">
+						<option value="none">Select Algorithm</option>
+						<option value="generateDepthFirstSearch">
+							Depth First Search
+						</option>
+						<option value="generateRandomizedPrims">
+							Randomized Prim's
+						</option>
+					</select>
+				</div>
+
+				<div id="selectDiv">
+					<label for="pathfindingAlgorithmSelect"
+						>Pathfinding Algorithm</label
+					>
+					<select id="pathfindingAlgorithmSelect" class="form-select">
+						<option value="none">Select Algorithm</option>
+						<option value="depthFirstSearch">
+							Depth First Search
+						</option>
+					</select>
+				</div>
+
+				<div id="buttons">
+					<button id="startButton" class="btn btn-primary">
+						Start
+					</button>
+					<button id="clearButton" class="btn btn-danger">
+						Clear
+					</button>
+				</div>
 			</div>
 			<div id="maze">
 				<canvas id="mazeCanvas"></canvas>
