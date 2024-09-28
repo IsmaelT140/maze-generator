@@ -21,20 +21,21 @@ const mirage = "#1A1D30"
 
 const rows = 20
 const cols = 30
-const cellSize = 25
-const wallWidth = 5
+const cellSize = 30
+const wallWidth = 4
 
 const mazeStart = [0, 0]
 const mazeEnd = [rows - 1, cols - 1]
 
-const mazeGenerationSpeed = 20
-const pathfindingSpeed = 40
+const mazeGenerationSpeed = 10
+const pathfindingSpeed = 20
 
 const canvasWidth = cols * cellSize + (cols + 1) * wallWidth
 const canvasHeight = rows * cellSize + (rows + 1) * wallWidth
 
 let grid = null
 let exploredNodes = null
+let path = null
 
 function initGrid() {
 	return Array.from({ length: rows }, () =>
@@ -56,6 +57,7 @@ function initExploredNodesArray() {
 function setup() {
 	grid = initGrid()
 	exploredNodes = initExploredNodesArray()
+	path = []
 
 	createCanvas(canvasWidth, canvasHeight, canvas)
 
@@ -67,8 +69,6 @@ function draw() {
 	background(mirage)
 	for (let row = 0; row < rows; row += 1) {
 		for (let col = 0; col < cols; col += 1) {
-			// TODO: Fix the rendering for edge case where there is a visible line between cells.
-			// TODO: Fix the rendering issue that causes the walls to be colored non-centered.
 			const cell = grid[row][col]
 			const x = col * cellSize + (col + 1) * wallWidth
 			const y = row * cellSize + (row + 1) * wallWidth
@@ -181,7 +181,29 @@ function draw() {
 			}
 		}
 	}
-	// TODO: Add code to render the pathfinding algorithms visited cells, and the final path.
+
+	if (path) {
+		for (let i = 0; i < path.length; i += 1) {
+			const [row, col] = path[i]
+			const x = col * cellSize + (col + 1) * wallWidth
+			const y = row * cellSize + (row + 1) * wallWidth
+			const cellCenter = [x + cellSize / 2, y + cellSize / 2]
+
+			if (path[i + 1]) {
+				const [nextRow, nextCol] = path[i + 1]
+				const r = nextCol * cellSize + (nextCol + 1) * wallWidth
+				const c = nextRow * cellSize + (nextRow + 1) * wallWidth
+				const nextCellCenter = [r + cellSize / 2, c + cellSize / 2]
+
+				stroke(120)
+				strokeWeight(wallWidth)
+				line(...cellCenter, ...nextCellCenter)
+			}
+
+			stroke(198)
+			circle(...cellCenter, wallWidth * 2)
+		}
+	}
 }
 
 async function startAlgorithm(mazeAlgorithm, pathfindingAlgorithm) {
@@ -322,7 +344,7 @@ function removeWalls(row, col, nextRow, nextCol) {
 }
 
 function reconstructPath(pathMap) {
-	let path = []
+	path = []
 	let current = mazeEnd
 
 	console.log(pathMap)
