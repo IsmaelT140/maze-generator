@@ -59,6 +59,8 @@ function draw() {
 	stroke(0)
 	for (let row = 0; row < rows; row += 1) {
 		for (let col = 0; col < cols; col += 1) {
+			// TODO: Fix the rendering for edge case where there is a visible line between cells.
+			// TODO: Fix the rendering issue that causes the walls to be colored non-centered.
 			const cell = grid[row][col]
 			const x = col * cellSize + (col + 1) * wallWidth
 			const y = row * cellSize + (row + 1) * wallWidth
@@ -277,36 +279,19 @@ function isCellValid(row, col, visited, validityOnly) {
 	return false
 }
 
-function getNeighbors(row, col, visited = false) {
+function getNeighbors(row, col, gen, visited = false) {
 	const neighbors = []
+	const cell = grid[row][col]
 
-	if (isCellValid(row - 1, col, visited)) neighbors.push([row - 1, col])
+	let topValid = isCellValid(row - 1, col, visited)
+	let rightValid = isCellValid(row, col + 1, visited)
+	let bottomValid = isCellValid(row + 1, col, visited)
+	let leftValid = isCellValid(row, col - 1, visited)
 
-	if (isCellValid(row, col + 1, visited)) neighbors.push([row, col + 1])
-
-	if (isCellValid(row + 1, col, visited)) neighbors.push([row + 1, col])
-
-	if (isCellValid(row, col - 1, visited)) neighbors.push([row, col - 1])
-
-	return neighbors
-}
-
-function getPathfindingNeighbors(row, col, visited = false) {
-	const neighbors = []
-	let cell = grid[row][col]
-
-	if (!cell.top) {
-		if (isCellValid(row - 1, col, visited)) neighbors.push([row - 1, col])
-	}
-	if (!cell.right) {
-		if (isCellValid(row, col + 1, visited)) neighbors.push([row, col + 1])
-	}
-	if (!cell.bottom) {
-		if (isCellValid(row + 1, col, visited)) neighbors.push([row + 1, col])
-	}
-	if (!cell.left) {
-		if (isCellValid(row, col - 1, visited)) neighbors.push([row, col - 1])
-	}
+	if ((gen || !cell.top) && topValid) neighbors.push([row - 1, col])
+	if ((gen || !cell.right) && rightValid) neighbors.push([row, col + 1])
+	if ((gen || !cell.bottom) && bottomValid) neighbors.push([row + 1, col])
+	if ((gen || !cell.left) && leftValid) neighbors.push([row, col - 1])
 
 	return neighbors
 }
@@ -369,7 +354,7 @@ async function depthFirstSearch() {
 
 		await new Promise((resolve) => setTimeout(resolve, mazeGenerationSpeed))
 
-		const neighbors = getNeighbors(row, col)
+		const neighbors = getNeighbors(row, col, true)
 
 		if (!Array.isArray(neighbors) || !neighbors.length > 0) {
 			setCellState(row, col, { highlight: "closedSet" })
@@ -394,8 +379,8 @@ async function randomizedPrims() {
 	setCellState(0, 0, { highlight: "closedSet" })
 	draw()
 
-	getNeighbors(0, 0).forEach((cell) => {
-		const [row, col] = cell
+	getNeighbors(0, 0, true).forEach((neighbor) => {
+		const [row, col] = neighbor
 		stack.push([row, col])
 		setCellState(row, col, { highlight: "openSet" })
 	})
@@ -405,7 +390,7 @@ async function randomizedPrims() {
 
 		draw()
 
-		const neighbors = getNeighbors(row, col, true)
+		const neighbors = getNeighbors(row, col, true, true)
 
 		const [nextRow, nextCol] = neighbors.splice(
 			getRandomIndex(neighbors),
@@ -415,7 +400,7 @@ async function randomizedPrims() {
 		exploredNodes[row][col] = true
 		setCellState(row, col, { highlight: "closedSet" })
 		removeWalls(row, col, nextRow, nextCol)
-		getNeighbors(row, col).forEach((neighbor) => {
+		getNeighbors(row, col, true).forEach((neighbor) => {
 			if (!arrayIncludesCell(stack, neighbor)) {
 				stack.push(neighbor)
 				setCellState(neighbor[0], neighbor[1], { highlight: "openSet" })
@@ -450,9 +435,7 @@ async function pathfindingDFS() {
 			return reconstructPath(pathMap)
 		}
 
-		const neighbors = getPathfindingNeighbors(row, col)
-
-		for (const neighbor of neighbors) {
+		getNeighbors(row, col, false).forEach((neighbor) => {
 			let [neighborRow, neighborCol] = neighbor
 
 			if (exploredNodes[neighborRow][neighborCol] === false) {
@@ -462,7 +445,7 @@ async function pathfindingDFS() {
 					stack.push(neighbor)
 				}
 			}
-		}
+		})
 
 		const nextNode = stack[stack.length - 1]
 
@@ -501,9 +484,7 @@ async function breadthFirstSearch() {
 
 		setCellState(row, col, { highlight: "current" })
 
-		const neighbors = getPathfindingNeighbors(row, col)
-
-		neighbors.forEach((neighbor) => {
+		getNeighbors(row, col, false).forEach((neighbor) => {
 			if (!arrayIncludesCell(queue, neighbor)) {
 				queue.push(neighbor)
 				setCellState(neighbor[0], neighbor[1], { highlight: "openSet" })
@@ -540,16 +521,13 @@ async function greedyBFS() {
 			return reconstructPath(pathMap)
 		}
 
-		const neighbors = getPathfindingNeighbors(row, col)
-
-		neighbors.forEach((neighbor) => {
+		getNeighbors(row, col, false).forEach((neighbor) => {
 			const [neighborRow, neighborCol] = neighbor
 
 			if (typeof grid[neighborRow][neighborCol].distance !== "number") {
-				let d = Math.sqrt(
-					((mazeEnd[0] - neighborRow) ^ 2) +
-						((mazeEnd[1] - neighborCol) ^ 2)
-				)
+				let d =
+					Math.abs(mazeEnd[0] - neighborRow) +
+					Math.abs(mazeEnd[1] - neighborCol)
 				grid[neighborRow][neighborCol].distance = d
 			}
 
