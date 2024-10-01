@@ -1,13 +1,3 @@
-const logStyles = [
-	"background-color: #F5F2F1",
-	"color: #F37E8C",
-	"padding: 0.5rem",
-	"font-size: 2rem",
-	"font-family: `JetBrains Mono`, monospace",
-	"font-optical-sizing: auto",
-	"font-weight: 500",
-	"font-style: normal",
-].join(";")
 const canvas = document.getElementById("mazeCanvas")
 const mazeDiv = document.getElementById("mazeDiv")
 const startButton = document.getElementById("startButton")
@@ -21,14 +11,14 @@ const mirage = "#1A1D30"
 
 const rows = 20
 const cols = 30
-const cellSize = 30
-const wallWidth = 8
+const cellSize = 20
+const wallWidth = 20
 
 const mazeStart = [0, 0]
 const mazeEnd = [rows - 1, cols - 1]
 
 const mazeGenerationSpeed = 1
-const pathfindingSpeed = 20
+const pathfindingSpeed = 5
 
 const canvasWidth = cols * cellSize + (cols + 1) * wallWidth
 const canvasHeight = rows * cellSize + (rows + 1) * wallWidth
@@ -45,6 +35,7 @@ function initGrid() {
 			bottom: true,
 			left: true,
 			highlight: false,
+			distance: null,
 		}))
 	)
 }
@@ -60,17 +51,14 @@ function setup() {
 	path = []
 
 	createCanvas(canvasWidth, canvasHeight, canvas)
-
-	strokeWeight(wallWidth)
-	stroke(0)
 }
 
 function draw() {
 	background(mirage)
+	strokeWeight(wallWidth)
+	stroke(0)
 	for (let row = 0; row < rows; row += 1) {
 		for (let col = 0; col < cols; col += 1) {
-			// TODO: Fix the rendering for edge case where there is a visible line between cells.
-			// TODO: Fix the rendering issue that causes the walls to be colored non-centered.
 			const cell = grid[row][col]
 			const x = col * cellSize + (col + 1) * wallWidth
 			const y = row * cellSize + (row + 1) * wallWidth
@@ -183,7 +171,7 @@ function draw() {
 			}
 		}
 	}
-	// TODO: Add code to render the pathfinding algorithms visited cells, and the final path.
+
 	if (path) {
 		for (let i = 0; i < path.length; i += 1) {
 			const [row, col] = path[i]
@@ -198,12 +186,12 @@ function draw() {
 				const nextCellCenter = [r + cellSize / 2, c + cellSize / 2]
 
 				stroke(237, 129, 152)
-				strokeWeight(wallWidth)
+				strokeWeight(Math.floor(cellSize / 4))
 				line(...cellCenter, ...nextCellCenter)
 			}
 
 			stroke(198)
-			circle(...cellCenter, wallWidth)
+			circle(...cellCenter, Math.floor(cellSize / 3))
 		}
 	}
 }
@@ -232,6 +220,9 @@ async function startAlgorithm(mazeAlgorithm, pathfindingAlgorithm) {
 			break
 		case "breadthFirstSearch":
 			await breadthFirstSearch()
+			break
+		case "greedyBFS":
+			await greedyBFS()
 			break
 
 		default:
@@ -352,15 +343,12 @@ function reconstructPath(pathMap) {
 	path = []
 	let current = mazeEnd
 
-	console.log(pathMap)
-
 	while (current) {
 		path.push(current)
 		current = pathMap.get(current.toString())
 	}
 
 	path = path.reverse()
-	console.log(path)
 
 	return path
 }
@@ -396,7 +384,6 @@ async function depthFirstSearch() {
 		setCellState(row, col, { highlight: "openSet" })
 		setCellState(nextRow, nextCol, { highlight: "openSet" })
 	}
-	console.log(`%cDone!`, logStyles)
 }
 
 async function randomizedPrims() {
@@ -436,11 +423,9 @@ async function randomizedPrims() {
 		})
 		await new Promise((resolve) => setTimeout(resolve, mazeGenerationSpeed))
 	}
-	console.log(`%cDone!`, logStyles)
 }
 
 async function pathfindingDFS() {
-	console.log("Pathfinding DFS starting...")
 	let pathMap = new Map()
 
 	let stack = []
@@ -494,15 +479,14 @@ async function pathfindingDFS() {
 
 async function breadthFirstSearch() {
 	let pathMap = new Map()
-	let stack = []
-	stack.push(mazeStart)
+	let queue = []
+	queue.push(mazeStart)
 
 	exploredNodes = initExploredNodesArray()
 
-	while (Array.isArray(stack) && stack.length > 0) {
-		const [row, col] = stack.shift()
+	while (Array.isArray(queue) && queue.length > 0) {
+		const [row, col] = queue.shift()
 		setCellState(row, col, { highlight: "current" })
-		console.log(row, col)
 
 		draw()
 
@@ -517,12 +501,11 @@ async function breadthFirstSearch() {
 
 		setCellState(row, col, { highlight: "current" })
 
-		debugger
 		const neighbors = getPathfindingNeighbors(row, col)
 
 		neighbors.forEach((neighbor) => {
-			if (!arrayIncludesCell(stack, neighbor)) {
-				stack.push(neighbor)
+			if (!arrayIncludesCell(queue, neighbor)) {
+				queue.push(neighbor)
 				setCellState(neighbor[0], neighbor[1], { highlight: "openSet" })
 			}
 			if (!pathMap.has(neighbor.toString())) {
@@ -531,6 +514,62 @@ async function breadthFirstSearch() {
 		})
 
 		await new Promise((resolve) => setTimeout(resolve, pathfindingSpeed))
+		setCellState(row, col, { highlight: "path" })
+	}
+	console.error("No path found.")
+	return false
+}
+
+async function greedyBFS() {
+	let pathMap = new Map()
+	let queue = []
+	queue.push(mazeStart)
+
+	exploredNodes = initExploredNodesArray()
+
+	while (Array.isArray(queue) && queue.length > 0) {
+		const [row, col] = queue.shift()
+		setCellState(row, col, { highlight: "current" })
+
+		if (exploredNodes[row][col] === false) {
+			exploredNodes[row][col] = true
+		}
+
+		if ([row, col].toString() === mazeEnd.toString()) {
+			setCellState(row, col, { highlight: "path" })
+			return reconstructPath(pathMap)
+		}
+
+		const neighbors = getPathfindingNeighbors(row, col)
+
+		neighbors.forEach((neighbor) => {
+			const [neighborRow, neighborCol] = neighbor
+
+			if (typeof grid[neighborRow][neighborCol].distance !== "number") {
+				let d = Math.sqrt(
+					((mazeEnd[0] - neighborRow) ^ 2) +
+						((mazeEnd[1] - neighborCol) ^ 2)
+				)
+				grid[neighborRow][neighborCol].distance = d
+			}
+
+			queue.push(neighbor)
+			setCellState(neighborRow, neighborCol, { highlight: "openSet" })
+
+			queue.sort((a, b) => {
+				const aDistance = grid[a[0]][a[1]].distance
+				const bDistance = grid[b[0]][b[1]].distance
+
+				return aDistance - bDistance
+			})
+
+			if (!pathMap.has(neighbor.toString())) {
+				pathMap.set(neighbor.toString(), [row, col])
+			}
+		})
+
+		await new Promise((resolve) => setTimeout(resolve, pathfindingSpeed))
+
 		setCellState(row, col, { highlight: "path" })
 	}
 	console.error("No path found.")
