@@ -36,6 +36,7 @@ function initGrid() {
 			left: true,
 			highlight: false,
 			distance: null,
+			parent: null,
 		}))
 	)
 }
@@ -59,8 +60,6 @@ function draw() {
 	stroke(0)
 	for (let row = 0; row < rows; row += 1) {
 		for (let col = 0; col < cols; col += 1) {
-			// TODO: Fix the rendering for edge case where there is a visible line between cells.
-			// TODO: Fix the rendering issue that causes the walls to be colored non-centered.
 			const cell = grid[row][col]
 			const x = col * cellSize + (col + 1) * wallWidth
 			const y = row * cellSize + (row + 1) * wallWidth
@@ -218,13 +217,13 @@ async function startAlgorithm(mazeAlgorithm, pathfindingAlgorithm) {
 
 	switch (pathfindingAlgorithm) {
 		case "depthFirstSearch":
-			await pathfindingDFS()
+			await pathfindingDFS(mazeStart, mazeEnd)
 			break
 		case "breadthFirstSearch":
-			await breadthFirstSearch()
+			await breadthFirstSearch(mazeStart, mazeEnd)
 			break
 		case "greedyBFS":
-			await greedyBFS()
+			await greedyBFS(mazeStart, mazeEnd)
 			break
 
 		default:
@@ -410,13 +409,13 @@ async function randomizedPrims() {
 	}
 }
 
-async function pathfindingDFS() {
+async function pathfindingDFS(start, end) {
 	let pathMap = new Map()
 
 	let stack = []
-	stack.push(mazeStart)
+	stack.push(start)
 
-	pathMap.set(mazeStart.toString(), null)
+	pathMap.set(start.toString(), null)
 
 	exploredNodes = initExploredNodesArray()
 
@@ -430,7 +429,7 @@ async function pathfindingDFS() {
 			exploredNodes[row][col] = true
 		}
 
-		if ([row, col].toString() === mazeEnd.toString()) {
+		if ([row, col].toString() === end.toString()) {
 			setCellState(row, col, { highlight: "path" })
 			return reconstructPath(pathMap)
 		}
@@ -460,10 +459,10 @@ async function pathfindingDFS() {
 	return false
 }
 
-async function breadthFirstSearch() {
+async function breadthFirstSearch(start, end) {
 	let pathMap = new Map()
 	let queue = []
-	queue.push(mazeStart)
+	queue.push(start)
 
 	exploredNodes = initExploredNodesArray()
 
@@ -477,7 +476,7 @@ async function breadthFirstSearch() {
 			exploredNodes[row][col] = true
 		}
 
-		if ([row, col].toString() === mazeEnd.toString()) {
+		if ([row, col].toString() === end.toString()) {
 			setCellState(row, col, { highlight: "path" })
 			return reconstructPath(pathMap)
 		}
@@ -501,10 +500,10 @@ async function breadthFirstSearch() {
 	return false
 }
 
-async function greedyBFS() {
+async function greedyBFS(start, end) {
 	let pathMap = new Map()
 	let queue = []
-	queue.push(mazeStart)
+	queue.push(start)
 
 	exploredNodes = initExploredNodesArray()
 
@@ -516,7 +515,7 @@ async function greedyBFS() {
 			exploredNodes[row][col] = true
 		}
 
-		if ([row, col].toString() === mazeEnd.toString()) {
+		if ([row, col].toString() === end.toString()) {
 			setCellState(row, col, { highlight: "path" })
 			return reconstructPath(pathMap)
 		}
@@ -552,4 +551,41 @@ async function greedyBFS() {
 	}
 	console.error("No path found.")
 	return false
+}
+
+async function kruskalsAlgorithm(start, end) {
+	let pathMap = new Map()
+
+	let randomizedQueue = []
+
+	let f = undefined
+
+	for (let row = 0; row < rows; row += 1) {
+		for (let col = 0; col < cols; col += 1) {
+			randomizedQueue.push([row, col])
+			setCellState(row, col, { parent: [row, col] })
+		}
+	}
+
+	while (Array.isArray(randomizedQueue) && randomizedQueue.length > 0) {
+		const [row, col] = randomizedQueue[getRandomIndex(randomizedQueue)]
+		setCellState(row, col, { highlight: "current" })
+
+		if (exploredNodes[row][col] === false) {
+			exploredNodes[row][col] = true
+		}
+
+		let neighbors = getNeighbors(row, col, true, true).filter(
+			(neighbor) => {
+				const [neighborRow, neighborCol] = neighbor
+				grid[row][col].parent !== grid[neighborRow][neighborCol].parent
+			}
+		)
+
+		const [neighborRow, neighborCol] = neighbors[getRandomIndex(neighbors)]
+
+		removeWalls(row, col, neighborRow, neighborCol)
+
+		await new Promise((resolve) => setTimeout(resolve, mazeGenerationSpeed))
+	}
 }
