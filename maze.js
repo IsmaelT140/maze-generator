@@ -20,9 +20,6 @@ const mazeEnd = [rows - 1, cols - 1]
 const mazeGenerationSpeed = 1
 const pathfindingSpeed = 5
 
-const canvasWidth = cols * cellSize + (cols + 1) * wallWidth
-const canvasHeight = rows * cellSize + (rows + 1) * wallWidth
-
 let grid = null
 let exploredNodes = null
 let path = null
@@ -51,6 +48,8 @@ function setup() {
 	exploredNodes = initExploredNodesArray()
 	path = []
 
+	const canvasWidth = cols * cellSize + (cols + 1) * wallWidth
+	const canvasHeight = rows * cellSize + (rows + 1) * wallWidth
 	createCanvas(canvasWidth, canvasHeight, canvas)
 }
 
@@ -209,6 +208,9 @@ async function startAlgorithm(mazeAlgorithm, pathfindingAlgorithm) {
 		case "generateRandomizedPrims":
 			await randomizedPrims()
 			break
+		case "kruskalsAlgorithm":
+			await kruskalsAlgorithm()
+			break
 
 		default:
 			alert("Please select a valid maze generation algorithm.")
@@ -278,19 +280,23 @@ function isCellValid(row, col, visited, validityOnly) {
 	return false
 }
 
-function getNeighbors(row, col, gen, visited = false) {
+function getNeighbors(row, col, gen, visited = false, validityOnly) {
 	const neighbors = []
 	const cell = grid[row][col]
 
-	let topValid = isCellValid(row - 1, col, visited)
-	let rightValid = isCellValid(row, col + 1, visited)
-	let bottomValid = isCellValid(row + 1, col, visited)
-	let leftValid = isCellValid(row, col - 1, visited)
+	let topValid = isCellValid(row - 1, col, visited, validityOnly)
+	let rightValid = isCellValid(row, col + 1, visited, validityOnly)
+	let bottomValid = isCellValid(row + 1, col, visited, validityOnly)
+	let leftValid = isCellValid(row, col - 1, visited, validityOnly)
 
-	if ((gen || !cell.top) && topValid) neighbors.push([row - 1, col])
-	if ((gen || !cell.right) && rightValid) neighbors.push([row, col + 1])
-	if ((gen || !cell.bottom) && bottomValid) neighbors.push([row + 1, col])
-	if ((gen || !cell.left) && leftValid) neighbors.push([row, col - 1])
+	if ((gen || validityOnly || !cell.top) && topValid)
+		neighbors.push([row - 1, col])
+	if ((gen || validityOnly || !cell.right) && rightValid)
+		neighbors.push([row, col + 1])
+	if ((gen || validityOnly || !cell.bottom) && bottomValid)
+		neighbors.push([row + 1, col])
+	if ((gen || validityOnly || !cell.left) && leftValid)
+		neighbors.push([row, col - 1])
 
 	return neighbors
 }
@@ -335,6 +341,23 @@ function reconstructPath(pathMap) {
 	path = path.reverse()
 
 	return path
+}
+
+function removeDuplicateCombinations(pairs) {
+	const uniqueCombinations = new Set()
+
+	pairs.forEach((pair) => {
+		const sortedPair = pair.sort((a, b) => a[0] - b[0] || a[1] - b[1])
+
+		uniqueCombinations.add(JSON.stringify(sortedPair))
+	})
+	return Array.from(uniqueCombinations).map((string) => JSON.parse(string))
+}
+
+function distance(firstRow, firstCol, secondRow, secondCol) {
+	let rowDelta = secondRow - firstRow
+	let colDelta = secondCol - firstCol
+	return Math.sqrt(Math.pow(rowDelta, 2) + Math.pow(colDelta, 2))
 }
 
 async function depthFirstSearch() {
@@ -405,6 +428,82 @@ async function randomizedPrims() {
 				setCellState(neighbor[0], neighbor[1], { highlight: "openSet" })
 			}
 		})
+		await new Promise((resolve) => setTimeout(resolve, mazeGenerationSpeed))
+	}
+}
+
+async function kruskalsAlgorithm() {
+	let coordinatePairs = []
+
+	let setCount = rows * cols
+
+	for (let row = 0; row < rows; row += 1) {
+		for (let col = 0; col < cols; col += 1) {
+			let neighbors = getNeighbors(row, col, true, null, true)
+			neighbors.forEach((neighbor) =>
+				coordinatePairs.push([
+					[row, col],
+					[neighbor[0], neighbor[1]],
+				])
+			)
+			grid[row][col].set = [[row, col]]
+			setCellState(row, col, { parent: [row, col] })
+		}
+	}
+
+	randomizedQueue = removeDuplicateCombinations(coordinatePairs)
+
+	while (
+		Array.isArray(randomizedQueue) &&
+		randomizedQueue.length > 0 &&
+		setCount > 1
+	) {
+		const [[row, col], [neighborRow, neighborCol]] = randomizedQueue.splice(
+			getRandomIndex(randomizedQueue),
+			1
+		)[0]
+		const current = grid[row][col]
+		const neighbor = grid[neighborRow][neighborCol]
+
+		removeWalls(row, col, neighborRow, neighborCol)
+		setCellState(neighborRow, neighborCol, { highlight: "closedSet" })
+		setCellState(row, col, { highlight: "closedSet" })
+
+		let currentDistance = distance(row, col, mazeStart[0], mazeStart[1])
+		let neighborDistance = distance(
+			neighborRow,
+			neighborCol,
+			mazeStart[0],
+			mazeStart[1]
+		)
+
+		let currentParent = grid[current.parent[0]][current.parent[1]]
+		let neighborParent = grid[neighbor.parent[0]][neighbor.parent[1]]
+
+		if (currentDistance < neighborDistance) {
+			neighborParent.set.forEach((cell) => {
+				let [row, col] = cell
+				grid[row][col].parent = current.parent
+				currentParent.set.push(cell)
+			})
+			neighborParent.set = null
+			setCount -= 1
+		}
+		if (currentDistance > neighborDistance) {
+			currentParent.set.forEach((cell) => {
+				let [row, col] = cell
+				grid[row][col].parent = neighbor.parent
+				neighborParent.set.push(cell)
+			})
+			currentParent.set = null
+			setCount -= 1
+		}
+
+		randomizedQueue = randomizedQueue.filter((pair) => {
+			const [[x, y], [r, c]] = pair
+			return grid[x][y].parent !== grid[r][c].parent
+		})
+
 		await new Promise((resolve) => setTimeout(resolve, mazeGenerationSpeed))
 	}
 }
@@ -551,41 +650,4 @@ async function greedyBFS(start, end) {
 	}
 	console.error("No path found.")
 	return false
-}
-
-async function kruskalsAlgorithm(start, end) {
-	let pathMap = new Map()
-
-	let randomizedQueue = []
-
-	let f = undefined
-
-	for (let row = 0; row < rows; row += 1) {
-		for (let col = 0; col < cols; col += 1) {
-			randomizedQueue.push([row, col])
-			setCellState(row, col, { parent: [row, col] })
-		}
-	}
-
-	while (Array.isArray(randomizedQueue) && randomizedQueue.length > 0) {
-		const [row, col] = randomizedQueue[getRandomIndex(randomizedQueue)]
-		setCellState(row, col, { highlight: "current" })
-
-		if (exploredNodes[row][col] === false) {
-			exploredNodes[row][col] = true
-		}
-
-		let neighbors = getNeighbors(row, col, true, true).filter(
-			(neighbor) => {
-				const [neighborRow, neighborCol] = neighbor
-				grid[row][col].parent !== grid[neighborRow][neighborCol].parent
-			}
-		)
-
-		const [neighborRow, neighborCol] = neighbors[getRandomIndex(neighbors)]
-
-		removeWalls(row, col, neighborRow, neighborCol)
-
-		await new Promise((resolve) => setTimeout(resolve, mazeGenerationSpeed))
-	}
 }
