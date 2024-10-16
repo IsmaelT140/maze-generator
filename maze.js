@@ -9,8 +9,7 @@ const azure = "#396FB8"
 const stormGray = "#666C85"
 const mirage = "#1A1D30"
 
-const rows = 20
-const cols = 30
+const [rows, cols] = [20, 30]
 const cellSize = 20
 const wallWidth = 20
 
@@ -253,14 +252,14 @@ clearButton.addEventListener("click", () => {
 	startButton.disabled = false
 })
 
-function getRandomIndex(array) {
+function getRandomItem(array) {
 	if (!Array.isArray(array)) {
 		throw new Error("Input must be an array")
 	}
 	if (array.length === 0) {
 		return -1
 	}
-	return Math.floor(Math.random() * array.length)
+	return array.splice(Math.floor(Math.random() * array.length), 1)[0]
 }
 
 function arrayIncludesCell(array, cell) {
@@ -280,23 +279,47 @@ function isCellValid(row, col, visited, validityOnly) {
 	return false
 }
 
-function getNeighbors(row, col, gen, visited = false, validityOnly) {
+function getNeighbors(
+	xy,
+	visited = false,
+	pathfinding = false,
+	validityOnly = false
+) {
+	const [row, col] = xy
 	const neighbors = []
 	const cell = grid[row][col]
+	const directions = [
+		{
+			rowOffset: -1,
+			colOffset: 0,
+			wall: "top",
+			valid: isCellValid(row - 1, col, visited, validityOnly),
+		},
+		{
+			rowOffset: 0,
+			colOffset: 1,
+			wall: "right",
+			valid: isCellValid(row, col + 1, visited, validityOnly),
+		},
+		{
+			rowOffset: 1,
+			colOffset: 0,
+			wall: "bottom",
+			valid: isCellValid(row + 1, col, visited, validityOnly),
+		},
+		{
+			rowOffset: 0,
+			colOffset: -1,
+			wall: "left",
+			valid: isCellValid(row, col - 1, visited, validityOnly),
+		},
+	]
 
-	let topValid = isCellValid(row - 1, col, visited, validityOnly)
-	let rightValid = isCellValid(row, col + 1, visited, validityOnly)
-	let bottomValid = isCellValid(row + 1, col, visited, validityOnly)
-	let leftValid = isCellValid(row, col - 1, visited, validityOnly)
-
-	if ((gen || validityOnly || !cell.top) && topValid)
-		neighbors.push([row - 1, col])
-	if ((gen || validityOnly || !cell.right) && rightValid)
-		neighbors.push([row, col + 1])
-	if ((gen || validityOnly || !cell.bottom) && bottomValid)
-		neighbors.push([row + 1, col])
-	if ((gen || validityOnly || !cell.left) && leftValid)
-		neighbors.push([row, col - 1])
+	directions.forEach(({ rowOffset, colOffset, wall, valid }) => {
+		if (valid && (!pathfinding || !cell[wall])) {
+			neighbors.push([row + rowOffset, col + colOffset])
+		}
+	})
 
 	return neighbors
 }
@@ -361,11 +384,9 @@ function distance(firstRow, firstCol, secondRow, secondCol) {
 }
 
 async function depthFirstSearch() {
-	let stack = []
+	let stack = [mazeStart]
 
 	exploredNodes = initExploredNodesArray()
-
-	stack.push([0, 0])
 
 	while (stack.length > 0) {
 		const [row, col] = stack.pop()
@@ -376,14 +397,14 @@ async function depthFirstSearch() {
 
 		await new Promise((resolve) => setTimeout(resolve, mazeGenerationSpeed))
 
-		const neighbors = getNeighbors(row, col, true)
+		const neighbors = getNeighbors([row, col])
 
 		if (!Array.isArray(neighbors) || !neighbors.length > 0) {
 			setCellState(row, col, { highlight: "closedSet" })
 			continue
 		}
 
-		const [nextRow, nextCol] = neighbors[getRandomIndex(neighbors)]
+		const [nextRow, nextCol] = getRandomItem(neighbors)
 		removeWalls(row, col, nextRow, nextCol)
 
 		stack.push([row, col], [nextRow, nextCol])
@@ -397,32 +418,29 @@ async function randomizedPrims() {
 	let stack = []
 
 	exploredNodes = initExploredNodesArray()
-	exploredNodes[0][0] = true
-	setCellState(0, 0, { highlight: "closedSet" })
+	exploredNodes[mazeStart[0]][mazeStart[1]] = true
+	setCellState(mazeStart[0], mazeStart[1], { highlight: "closedSet" })
 	draw()
 
-	getNeighbors(0, 0, true).forEach((neighbor) => {
+	getNeighbors(mazeStart).forEach((neighbor) => {
 		const [row, col] = neighbor
 		stack.push([row, col])
 		setCellState(row, col, { highlight: "openSet" })
 	})
 
 	while (stack.length > 0) {
-		const [row, col] = stack.splice(getRandomIndex(stack), 1)[0]
+		const [row, col] = getRandomItem(stack)
 
 		draw()
 
-		const neighbors = getNeighbors(row, col, true, true)
+		const neighbors = getNeighbors([row, col], true)
 
-		const [nextRow, nextCol] = neighbors.splice(
-			getRandomIndex(neighbors),
-			1
-		)[0]
+		const [nextRow, nextCol] = getRandomItem(neighbors)
 
 		exploredNodes[row][col] = true
 		setCellState(row, col, { highlight: "closedSet" })
 		removeWalls(row, col, nextRow, nextCol)
-		getNeighbors(row, col, true).forEach((neighbor) => {
+		getNeighbors([row, col]).forEach((neighbor) => {
 			if (!arrayIncludesCell(stack, neighbor)) {
 				stack.push(neighbor)
 				setCellState(neighbor[0], neighbor[1], { highlight: "openSet" })
@@ -439,7 +457,7 @@ async function kruskalsAlgorithm() {
 
 	for (let row = 0; row < rows; row += 1) {
 		for (let col = 0; col < cols; col += 1) {
-			let neighbors = getNeighbors(row, col, true, null, true)
+			let neighbors = getNeighbors([row, col], false, false, true)
 			neighbors.forEach((neighbor) =>
 				coordinatePairs.push([
 					[row, col],
@@ -458,10 +476,8 @@ async function kruskalsAlgorithm() {
 		randomizedQueue.length > 0 &&
 		setCount > 1
 	) {
-		const [[row, col], [neighborRow, neighborCol]] = randomizedQueue.splice(
-			getRandomIndex(randomizedQueue),
-			1
-		)[0]
+		const [[row, col], [neighborRow, neighborCol]] =
+			getRandomItem(randomizedQueue)
 		const current = grid[row][col]
 		const neighbor = grid[neighborRow][neighborCol]
 
@@ -533,7 +549,7 @@ async function pathfindingDFS(start, end) {
 			return reconstructPath(pathMap)
 		}
 
-		getNeighbors(row, col, false).forEach((neighbor) => {
+		getNeighbors([row, col], false, true).forEach((neighbor) => {
 			let [neighborRow, neighborCol] = neighbor
 
 			if (exploredNodes[neighborRow][neighborCol] === false) {
@@ -582,7 +598,7 @@ async function breadthFirstSearch(start, end) {
 
 		setCellState(row, col, { highlight: "current" })
 
-		getNeighbors(row, col, false).forEach((neighbor) => {
+		getNeighbors([row, col], false, true).forEach((neighbor) => {
 			if (!arrayIncludesCell(queue, neighbor)) {
 				queue.push(neighbor)
 				setCellState(neighbor[0], neighbor[1], { highlight: "openSet" })
@@ -619,7 +635,7 @@ async function greedyBFS(start, end) {
 			return reconstructPath(pathMap)
 		}
 
-		getNeighbors(row, col, false).forEach((neighbor) => {
+		getNeighbors([row, col], false, true).forEach((neighbor) => {
 			const [neighborRow, neighborCol] = neighbor
 
 			if (typeof grid[neighborRow][neighborCol].distance !== "number") {
