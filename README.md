@@ -14,7 +14,7 @@ A JavaScript application that generates random mazes using various algorithms, w
 ## Technologies Used
 
 -   **JavaScript**: Core implementation.
--   **p5.js**: Visual rendering.
+-   **D3.js**: Visual rendering.
 -   **CSS**: Interface styling.
 
 ## Future Plans

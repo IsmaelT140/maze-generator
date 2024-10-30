@@ -1,4 +1,4 @@
-const canvas = document.getElementById("mazeCanvas")
+const maze = document.getElementById("mazeSvg")
 const mazeDiv = document.getElementById("mazeDiv")
 const startButton = document.getElementById("startButton")
 const clearButton = document.getElementById("clearButton")
@@ -9,32 +9,50 @@ const azure = "#396FB8"
 const stormGray = "#666C85"
 const mirage = "#1A1D30"
 
-const [rows, cols] = [20, 30]
-const cellSize = 20
-const wallWidth = 20
+const [rows, cols] = [9, 16]
+const cellSize = 40
+const wallWidth = Math.floor(cellSize / 3)
+
+const svgWidth = cols * cellSize + (cols + 1) * wallWidth
+const svgHeight = rows * cellSize + (rows + 1) * wallWidth
 
 const mazeStart = [0, 0]
 const mazeEnd = [rows - 1, cols - 1]
 
-const mazeGenerationSpeed = 1
-const pathfindingSpeed = 5
+const mazeGenerationSpeed = 0
+const pathfindingSpeed = 0
 
 let grid = null
 let exploredNodes = null
 let path = null
 
 function initGrid() {
-	return Array.from({ length: rows }, () =>
-		Array.from({ length: cols }, () => ({
-			top: true,
-			right: true,
-			bottom: true,
-			left: true,
-			highlight: false,
-			distance: null,
-			parent: null,
-		}))
-	)
+	let maze = []
+	for (let row = 0; row < rows; row += 1) {
+		let rowArray = []
+		for (let col = 0; col < cols; col += 1) {
+			rowArray.push({
+				row,
+				col,
+				getX() {
+					return this.col * cellSize + (this.col + 1) * wallWidth
+				},
+				getY() {
+					return this.row * cellSize + (this.row + 1) * wallWidth
+				},
+				top: true,
+				right: true,
+				bottom: true,
+				left: true,
+				highlight: false,
+				distance: null,
+				parent: null,
+			})
+		}
+		maze.push(rowArray)
+	}
+
+	return maze
 }
 function initExploredNodesArray() {
 	return Array.from({ length: rows }, () =>
@@ -46,156 +64,107 @@ function setup() {
 	grid = initGrid()
 	exploredNodes = initExploredNodesArray()
 	path = []
-
-	const canvasWidth = cols * cellSize + (cols + 1) * wallWidth
-	const canvasHeight = rows * cellSize + (rows + 1) * wallWidth
-	createCanvas(canvasWidth, canvasHeight, canvas)
 }
 
 function draw() {
-	background(mirage)
-	strokeWeight(wallWidth)
-	stroke(0)
-	for (let row = 0; row < rows; row += 1) {
-		for (let col = 0; col < cols; col += 1) {
-			const cell = grid[row][col]
-			const x = col * cellSize + (col + 1) * wallWidth
-			const y = row * cellSize + (row + 1) * wallWidth
-			const halfLineWidth = Math.floor(wallWidth / 2)
+	const svg = d3
+		.select("#mazeSvg")
+		.attr("width", svgWidth)
+		.attr("height", svgHeight)
 
-			let cellAbove,
-				cellRight,
-				cellLeft,
-				cellBelow = null
+	// svg.append("rect")
+	// 	.attr("width", svgWidth)
+	// 	.attr("height", svgHeight)
+	// 	.attr("class", "background")
+	// 	.attr("fill", "#1A1D30")
 
-			if (isCellValid(row - 1, col, null, true)) {
-				cellAbove = true
-			}
-			if (isCellValid(row, col + 1, null, true)) {
-				cellRight = true
-			}
-			if (isCellValid(row + 1, col, null, true)) {
-				cellBelow = true
-			}
-			if (isCellValid(row, col - 1, null, true)) {
-				cellLeft = true
-			}
-
-			let cellColor = null
+	svg.selectAll(".cell")
+		.data(grid.flat())
+		.join("rect")
+		.attr("class", "cell")
+		.attr("id", (cell) => {
+			return `(${cell.row}, ${cell.col})`
+		})
+		.attr("x", (cell) => {
+			return cell.getX()
+		})
+		.attr("y", (cell) => {
+			return cell.getY()
+		})
+		.attr("width", cellSize)
+		.attr("height", cellSize)
+		.attr("fill", (cell) => {
 			if (cell.highlight) {
-				if (cell.highlight === "current") {
-					cellColor = athensGray
-				}
-				if (cell.highlight === "openSet") {
-					cellColor = glacier
-				}
-				if (cell.highlight === "closedSet") {
-					cellColor = azure
-				}
-				if (cell.highlight === "path") {
-					cellColor = stormGray
-				}
-				noStroke()
-				fill(cellColor)
-				square(x, y, cellSize)
+				if (cell.highlight === "current") return athensGray
+
+				if (cell.highlight === "openSet") return glacier
+
+				if (cell.highlight === "closedSet") return azure
+
+				if (cell.highlight === "path") return stormGray
 			}
+			return mirage
+		})
 
-			stroke(mirage)
-			strokeCap(SQUARE)
+	const topWallArray = grid.flat().filter((cell) => {
+		return cell.top
+	})
 
-			if (cell.top) {
-				line(
-					x - wallWidth,
-					y - halfLineWidth,
-					x + cellSize + wallWidth,
-					y - halfLineWidth
-				)
-			}
+	svg.selectAll(".top")
+		.data(topWallArray)
+		.join("rect")
+		.attr("class", "top")
+		.attr("x", (cell) => cell.getX() - wallWidth)
+		.attr("y", (cell) => cell.getY() - wallWidth)
+		.attr("width", cellSize + wallWidth * 2)
+		.attr("height", wallWidth)
+		.attr("fill", mirage)
 
-			if (cell.right && !cellRight) {
-				line(
-					x + cellSize + halfLineWidth,
-					y - wallWidth,
-					x + cellSize + halfLineWidth,
-					y + cellSize + wallWidth
-				)
-			}
+	const rightWallArray = grid.flat().filter((cell) => {
+		return cell.right
+	})
 
-			if (cell.bottom && !cellBelow) {
-				line(
-					x - wallWidth,
-					y + cellSize + halfLineWidth,
-					x + cellSize + wallWidth,
-					y + cellSize + halfLineWidth
-				)
-			}
+	svg.selectAll(".right")
+		.data(rightWallArray)
+		.join("rect")
+		.attr("class", "right")
+		.attr("x", (cell) => cell.getX() + cellSize)
+		.attr("y", (cell) => cell.getY() - wallWidth)
+		.attr("width", wallWidth)
+		.attr("height", cellSize + wallWidth * 2)
+		.attr("fill", mirage)
 
-			if (cell.left) {
-				line(
-					x - halfLineWidth,
-					y - wallWidth,
-					x - halfLineWidth,
-					y + cellSize + wallWidth
-				)
-			}
+	const bottomWallArray = grid.flat().filter((cell) => {
+		return cell.bottom
+	})
 
-			if (cellColor) {
-				stroke(cellColor)
+	svg.selectAll(".bottom")
+		.data(bottomWallArray)
+		.join("rect")
+		.attr("class", "bottom")
+		.attr("x", (cell) => cell.getX() - wallWidth)
+		.attr("y", (cell) => cell.getY() + cellSize)
+		.attr("width", cellSize + wallWidth * 2)
+		.attr("height", wallWidth)
+		.attr("fill", mirage)
 
-				if (!cell.top) {
-					line(x, y - halfLineWidth, x + cellSize, y - halfLineWidth)
-				}
+	const leftWallArray = grid.flat().filter((cell) => {
+		return cell.left
+	})
 
-				if (!cell.right && !cellRight) {
-					line(
-						x + cellSize + halfLineWidth,
-						y,
-						x + cellSize + halfLineWidth,
-						y + cellSize
-					)
-				}
-
-				if (!cell.bottom && !cellBelow) {
-					line(
-						x,
-						y + cellSize + halfLineWidth,
-						x + cellSize,
-						y + cellSize + halfLineWidth
-					)
-				}
-
-				if (!cell.left) {
-					line(x - halfLineWidth, y, x - halfLineWidth, y + cellSize)
-				}
-			}
-		}
-	}
-
-	if (path) {
-		for (let i = 0; i < path.length; i += 1) {
-			const [row, col] = path[i]
-			const x = col * cellSize + (col + 1) * wallWidth
-			const y = row * cellSize + (row + 1) * wallWidth
-			const cellCenter = [x + cellSize / 2, y + cellSize / 2]
-
-			if (path[i + 1]) {
-				const [nextRow, nextCol] = path[i + 1]
-				const r = nextCol * cellSize + (nextCol + 1) * wallWidth
-				const c = nextRow * cellSize + (nextRow + 1) * wallWidth
-				const nextCellCenter = [r + cellSize / 2, c + cellSize / 2]
-
-				stroke(237, 129, 152)
-				strokeWeight(Math.floor(cellSize / 4))
-				line(...cellCenter, ...nextCellCenter)
-			}
-
-			stroke(198)
-			circle(...cellCenter, Math.floor(cellSize / 3))
-		}
-	}
+	svg.selectAll(".left")
+		.data(leftWallArray)
+		.join("rect")
+		.attr("class", "left")
+		.attr("x", (cell) => cell.getX() - wallWidth)
+		.attr("y", (cell) => cell.getY() - wallWidth)
+		.attr("width", wallWidth)
+		.attr("height", cellSize + wallWidth * 2)
+		.attr("fill", mirage)
 }
 
 async function startAlgorithm(mazeAlgorithm, pathfindingAlgorithm) {
+	setup()
 	draw()
 	startButton.disabled = true
 	clearButton.disabled = true
@@ -667,3 +636,6 @@ async function greedyBFS(start, end) {
 	console.error("No path found.")
 	return false
 }
+
+setup()
+draw()

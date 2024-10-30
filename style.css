@@ -29,7 +29,7 @@ html{
     padding: auto;
 }
 
-#maze{
+#mazeDiv{
     display: flex;
     justify-content: center;
     align-items: center;    
@@ -65,7 +65,7 @@ select{
         grid-area: 2 / 2 / 3 / 3;
         border-radius: 1em;
     }
-    #maze{
+    #mazeDiv{
         grid-area: 3 / 2 / 4 / 3;
     }
 }
@@ -89,7 +89,7 @@ select{
         justify-content: space-around;
         align-items: center;
     }
-    #maze{
+    #mazeDiv{
         grid-area: 2 / 2 / 3 / 3;
     }
 }
