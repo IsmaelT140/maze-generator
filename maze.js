@@ -19,8 +19,8 @@ const svgHeight = rows * cellSize + (rows + 1) * wallWidth
 const mazeStart = [0, 0]
 const mazeEnd = [rows - 1, cols - 1]
 
-const mazeGenerationSpeed = 0
-const pathfindingSpeed = 0
+const mazeGenerationSpeed = 2
+const pathfindingSpeed = 2
 
 let grid = null
 let exploredNodes = null
@@ -47,6 +47,18 @@ function initGrid() {
 				highlight: false,
 				distance: null,
 				parent: null,
+				getColor() {
+					if (this.highlight) {
+						if (this.highlight === "current") return athensGray
+
+						if (this.highlight === "openSet") return glacier
+
+						if (this.highlight === "closedSet") return azure
+
+						if (this.highlight === "path") return stormGray
+					}
+					return mirage
+				},
 			})
 		}
 		maze.push(rowArray)
@@ -72,18 +84,12 @@ function draw() {
 		.attr("width", svgWidth)
 		.attr("height", svgHeight)
 
-	// svg.append("rect")
-	// 	.attr("width", svgWidth)
-	// 	.attr("height", svgHeight)
-	// 	.attr("class", "background")
-	// 	.attr("fill", "#1A1D30")
-
 	svg.selectAll(".cell")
 		.data(grid.flat())
 		.join("rect")
 		.attr("class", "cell")
 		.attr("id", (cell) => {
-			return `(${cell.row}, ${cell.col})`
+			return `cell_(${cell.row},${cell.col})`
 		})
 		.attr("x", (cell) => {
 			return cell.getX()
@@ -93,74 +99,62 @@ function draw() {
 		})
 		.attr("width", cellSize)
 		.attr("height", cellSize)
-		.attr("fill", (cell) => {
-			if (cell.highlight) {
-				if (cell.highlight === "current") return athensGray
+		.attr("fill", (d) => d.getColor())
 
-				if (cell.highlight === "openSet") return glacier
+	const walls = []
 
-				if (cell.highlight === "closedSet") return azure
+	grid.flat().forEach((d) => {
+		const cellX = d.getX()
+		const cellY = d.getY()
 
-				if (cell.highlight === "path") return stormGray
-			}
-			return mirage
+		const cellColor = d3.color(d.getColor())
+
+		walls.push({
+			x: d.top ? cellX - wallWidth : cellX,
+			y: cellY - wallWidth,
+			width: d.top ? cellSize + wallWidth * 2 : cellSize,
+			height: wallWidth,
+			class: `wall ${d.row}_${d.col}_top`,
+			color: d.top ? mirage : cellColor,
 		})
 
-	const topWallArray = grid.flat().filter((cell) => {
-		return cell.top
+		walls.push({
+			x: cellX + cellSize,
+			y: d.right ? cellY - wallWidth : cellY,
+			width: wallWidth,
+			height: d.right ? cellSize + wallWidth * 2 : cellSize,
+			class: `wall ${d.row}_${d.col}_right`,
+			color: d.right ? mirage : cellColor,
+		})
+
+		walls.push({
+			x: d.bottom ? cellX - wallWidth : cellX,
+			y: cellY + cellSize,
+			width: d.bottom ? cellSize + wallWidth * 2 : cellSize,
+			height: wallWidth,
+			class: `wall ${d.row}_${d.col}_bottom`,
+			color: d.bottom ? mirage : cellColor,
+		})
+
+		walls.push({
+			x: cellX - wallWidth,
+			y: d.left ? cellY - wallWidth : cellY,
+			width: wallWidth,
+			height: d.left ? cellSize + wallWidth * 2 : cellSize,
+			class: `wall ${d.row}_${d.col}_left`,
+			color: d.left ? mirage : cellColor,
+		})
 	})
 
-	svg.selectAll(".top")
-		.data(topWallArray)
+	svg.selectAll(".wall")
+		.data(walls)
 		.join("rect")
-		.attr("class", "top")
-		.attr("x", (cell) => cell.getX() - wallWidth)
-		.attr("y", (cell) => cell.getY() - wallWidth)
-		.attr("width", cellSize + wallWidth * 2)
-		.attr("height", wallWidth)
-		.attr("fill", mirage)
-
-	const rightWallArray = grid.flat().filter((cell) => {
-		return cell.right
-	})
-
-	svg.selectAll(".right")
-		.data(rightWallArray)
-		.join("rect")
-		.attr("class", "right")
-		.attr("x", (cell) => cell.getX() + cellSize)
-		.attr("y", (cell) => cell.getY() - wallWidth)
-		.attr("width", wallWidth)
-		.attr("height", cellSize + wallWidth * 2)
-		.attr("fill", mirage)
-
-	const bottomWallArray = grid.flat().filter((cell) => {
-		return cell.bottom
-	})
-
-	svg.selectAll(".bottom")
-		.data(bottomWallArray)
-		.join("rect")
-		.attr("class", "bottom")
-		.attr("x", (cell) => cell.getX() - wallWidth)
-		.attr("y", (cell) => cell.getY() + cellSize)
-		.attr("width", cellSize + wallWidth * 2)
-		.attr("height", wallWidth)
-		.attr("fill", mirage)
-
-	const leftWallArray = grid.flat().filter((cell) => {
-		return cell.left
-	})
-
-	svg.selectAll(".left")
-		.data(leftWallArray)
-		.join("rect")
-		.attr("class", "left")
-		.attr("x", (cell) => cell.getX() - wallWidth)
-		.attr("y", (cell) => cell.getY() - wallWidth)
-		.attr("width", wallWidth)
-		.attr("height", cellSize + wallWidth * 2)
-		.attr("fill", mirage)
+		.attr("class", (d) => d.class)
+		.attr("x", (d) => d.x)
+		.attr("y", (d) => d.y)
+		.attr("width", (d) => d.width)
+		.attr("height", (d) => d.height)
+		.attr("fill", (d) => d.color)
 }
 
 async function startAlgorithm(mazeAlgorithm, pathfindingAlgorithm) {
