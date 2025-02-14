@@ -9,8 +9,8 @@ const azure = "#396FB8"
 const stormGray = "#666C85"
 const mirage = "#1A1D30"
 
-const [rows, cols] = [9, 16]
-const cellSize = 40
+const [rows, cols] = [12, 24]
+const cellSize = 35
 const wallWidth = Math.floor(cellSize / 3)
 
 const svgWidth = cols * cellSize + (cols + 1) * wallWidth
@@ -19,8 +19,8 @@ const svgHeight = rows * cellSize + (rows + 1) * wallWidth
 const mazeStart = [0, 0]
 const mazeEnd = [rows - 1, cols - 1]
 
-const mazeGenerationSpeed = 2
-const pathfindingSpeed = 2
+const mazeGenerationSpeed = 0
+const pathfindingSpeed = 5
 
 let grid = null
 let exploredNodes = null
@@ -76,6 +76,7 @@ function setup() {
 	grid = initGrid()
 	exploredNodes = initExploredNodesArray()
 	path = []
+	draw()
 }
 
 function draw() {
@@ -101,6 +102,22 @@ function draw() {
 		.attr("height", cellSize)
 		.attr("fill", (d) => d.getColor())
 
+	function getWallId(x, y, wallSide) {
+		let [x2, y2] = [x, y]
+
+		if (wallSide === "top") x2 -= 1
+		if (wallSide === "right") y2 += 1
+		if (wallSide === "bottom") x2 += 1
+		if (wallSide === "left") y2 -= 1
+
+		const [[minX, minY], [maxX, maxY]] = [
+			[x, y],
+			[x2, y2],
+		].sort((a, b) => a[0] - b[0] || a[1] - b[1])
+
+		return `${minX},${minY}-${maxX},${maxY}`
+	}
+
 	const walls = []
 
 	grid.flat().forEach((d) => {
@@ -108,42 +125,98 @@ function draw() {
 		const cellY = d.getY()
 
 		const cellColor = d3.color(d.getColor())
+		const topCellColor = isCellValid(d.row - 1, d.col, undefined, true)
+			? d3.color(grid[d.row - 1][d.col].getColor())
+			: undefined
+		const rightCellColor = isCellValid(d.row, d.col + 1, undefined, true)
+			? d3.color(grid[d.row][d.col + 1].getColor())
+			: undefined
+		const bottomCellColor = isCellValid(d.row + 1, d.col, undefined, true)
+			? d3.color(grid[d.row + 1][d.col].getColor())
+			: undefined
+		const leftCellColor = isCellValid(d.row, d.col - 1, undefined, true)
+			? d3.color(grid[d.row][d.col - 1].getColor())
+			: undefined
 
-		walls.push({
-			x: d.top ? cellX - wallWidth : cellX,
-			y: cellY - wallWidth,
-			width: d.top ? cellSize + wallWidth * 2 : cellSize,
-			height: wallWidth,
-			class: `wall ${d.row}_${d.col}_top`,
-			color: d.top ? mirage : cellColor,
-		})
+		function colorAverage(colorOne, colorTwo) {
+			return d3.color(
+				d3.rgb(
+					(colorOne.r + colorTwo.r) / 2,
+					(colorOne.g + colorTwo.g) / 2,
+					(colorOne.b + colorTwo.b) / 2
+				)
+			)
+		}
 
-		walls.push({
-			x: cellX + cellSize,
-			y: d.right ? cellY - wallWidth : cellY,
-			width: wallWidth,
-			height: d.right ? cellSize + wallWidth * 2 : cellSize,
-			class: `wall ${d.row}_${d.col}_right`,
-			color: d.right ? mirage : cellColor,
-		})
+		if (!walls.some((wall) => wall.id === getWallId(d.row, d.col, "top"))) {
+			walls.push({
+				x: d.top ? cellX - wallWidth : cellX,
+				y: cellY - wallWidth,
+				width: d.top ? cellSize + wallWidth * 2 : cellSize,
+				height: wallWidth,
+				class: `wall ${getWallId(d.row, d.col, "top")}`,
+				id: getWallId(d.row, d.col, "top"),
+				color: d.top
+					? mirage
+					: colorAverage(cellColor, topCellColor)
+					? colorAverage(cellColor, topCellColor)
+					: cellColor,
+			})
+		}
 
-		walls.push({
-			x: d.bottom ? cellX - wallWidth : cellX,
-			y: cellY + cellSize,
-			width: d.bottom ? cellSize + wallWidth * 2 : cellSize,
-			height: wallWidth,
-			class: `wall ${d.row}_${d.col}_bottom`,
-			color: d.bottom ? mirage : cellColor,
-		})
+		if (
+			!walls.some((wall) => wall.id === getWallId(d.row, d.col, "right"))
+		) {
+			walls.push({
+				x: cellX + cellSize,
+				y: d.right ? cellY - wallWidth : cellY,
+				width: wallWidth,
+				height: d.right ? cellSize + wallWidth * 2 : cellSize,
+				class: `wall ${getWallId(d.row, d.col, "right")}`,
+				id: getWallId(d.row, d.col, "right"),
+				color: d.right
+					? mirage
+					: colorAverage(cellColor, rightCellColor)
+					? colorAverage(cellColor, rightCellColor)
+					: cellColor,
+			})
+		}
 
-		walls.push({
-			x: cellX - wallWidth,
-			y: d.left ? cellY - wallWidth : cellY,
-			width: wallWidth,
-			height: d.left ? cellSize + wallWidth * 2 : cellSize,
-			class: `wall ${d.row}_${d.col}_left`,
-			color: d.left ? mirage : cellColor,
-		})
+		if (
+			!walls.some((wall) => wall.id === getWallId(d.row, d.col, "bottom"))
+		) {
+			walls.push({
+				x: d.bottom ? cellX - wallWidth : cellX,
+				y: cellY + cellSize,
+				width: d.bottom ? cellSize + wallWidth * 2 : cellSize,
+				height: wallWidth,
+				class: `wall ${getWallId(d.row, d.col, "bottom")}`,
+				id: getWallId(d.row, d.col, "bottom"),
+				color: d.bottom
+					? mirage
+					: colorAverage(cellColor, bottomCellColor)
+					? colorAverage(cellColor, bottomCellColor)
+					: cellColor,
+			})
+		}
+
+		if (
+			!walls.some((wall) => wall.id === getWallId(d.row, d.col, "left"))
+		) {
+			walls.push({
+				x: cellX - wallWidth,
+				y: d.left ? cellY - wallWidth : cellY,
+				width: wallWidth,
+				height: d.left ? cellSize + wallWidth * 2 : cellSize,
+				class: `wall ${getWallId(d.row, d.col, "left")}`,
+				id: getWallId(d.row, d.col, "left"),
+				color: d.left
+					? mirage
+					: colorAverage(cellColor, leftCellColor)
+					? colorAverage(cellColor, leftCellColor)
+					: cellColor,
+			})
+		}
 	})
 
 	svg.selectAll(".wall")
@@ -159,7 +232,6 @@ function draw() {
 
 async function startAlgorithm(mazeAlgorithm, pathfindingAlgorithm) {
 	setup()
-	draw()
 	startButton.disabled = true
 	clearButton.disabled = true
 
@@ -201,7 +273,6 @@ async function startAlgorithm(mazeAlgorithm, pathfindingAlgorithm) {
 
 startButton.addEventListener("click", () => {
 	setup()
-	draw()
 	const mazeAlgorithm = document.getElementById("mazeAlgorithmSelect").value
 	const pathfindingAlgorithm = document.getElementById(
 		"pathfindingAlgorithmSelect"
@@ -211,7 +282,6 @@ startButton.addEventListener("click", () => {
 
 clearButton.addEventListener("click", () => {
 	setup()
-	draw()
 	startButton.disabled = false
 })
 
@@ -383,7 +453,6 @@ async function randomizedPrims() {
 	exploredNodes = initExploredNodesArray()
 	exploredNodes[mazeStart[0]][mazeStart[1]] = true
 	setCellState(mazeStart[0], mazeStart[1], { highlight: "closedSet" })
-	draw()
 
 	getNeighbors(mazeStart).forEach((neighbor) => {
 		const [row, col] = neighbor
@@ -482,7 +551,7 @@ async function kruskalsAlgorithm() {
 			const [[x, y], [r, c]] = pair
 			return grid[x][y].parent !== grid[r][c].parent
 		})
-
+		draw()
 		await new Promise((resolve) => setTimeout(resolve, mazeGenerationSpeed))
 	}
 }
@@ -622,6 +691,7 @@ async function greedyBFS(start, end) {
 				pathMap.set(neighbor.toString(), [row, col])
 			}
 		})
+		draw()
 
 		await new Promise((resolve) => setTimeout(resolve, pathfindingSpeed))
 
@@ -632,4 +702,3 @@ async function greedyBFS(start, end) {
 }
 
 setup()
-draw()
