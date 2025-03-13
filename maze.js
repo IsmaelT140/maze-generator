@@ -10,7 +10,7 @@ const stormGray = "#666C85"
 const mirage = "#1A1D30"
 
 const [rows, cols] = [12, 24]
-const cellSize = 35
+const cellSize = 40
 const wallWidth = Math.floor(cellSize / 3)
 
 const svgWidth = cols * cellSize + (cols + 1) * wallWidth
@@ -82,8 +82,8 @@ function setup() {
 function draw() {
 	const svg = d3
 		.select("#mazeSvg")
-		.attr("width", svgWidth)
-		.attr("height", svgHeight)
+		.attr("viewBox", `0 0 ${svgWidth} ${svgHeight}`)
+		.attr("preserveAspectRatio", "xMidYMid meet")
 
 	svg.selectAll(".cell")
 		.data(grid.flat())
@@ -123,6 +123,8 @@ function draw() {
 	grid.flat().forEach((d) => {
 		const cellX = d.getX()
 		const cellY = d.getY()
+
+		// ? Can probably refactor this a bit...
 
 		const cellColor = d3.color(d.getColor())
 		const topCellColor = isCellValid(d.row - 1, d.col, undefined, true)
@@ -228,6 +230,13 @@ function draw() {
 		.attr("width", (d) => d.width)
 		.attr("height", (d) => d.height)
 		.attr("fill", (d) => d.color)
+}
+
+function resizeSVG() {
+	const width = mazeDiv.getBoundingClientRect().width
+	const height = (width * svgHeight) / svgWidth
+
+	svg.attr("width", width).attr("height", height)
 }
 
 async function startAlgorithm(mazeAlgorithm, pathfindingAlgorithm) {
@@ -702,3 +711,7 @@ async function greedyBFS(start, end) {
 }
 
 setup()
+
+resizeSVG()
+
+window.addEventListener("resize", resizeSVG)
