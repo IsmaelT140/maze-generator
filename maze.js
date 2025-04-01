@@ -8,8 +8,9 @@ const glacier = "#7BA6C2"
 const azure = "#396FB8"
 const stormGray = "#666C85"
 const mirage = "#1A1D30"
+const pink = "#FFC0CB"
 
-const [rows, cols] = [12, 24]
+const [rows, cols] = [15, 20]
 const cellSize = 40
 const wallWidth = Math.floor(cellSize / 3)
 
@@ -20,7 +21,7 @@ const mazeStart = [0, 0]
 const mazeEnd = [rows - 1, cols - 1]
 
 const mazeGenerationSpeed = 0
-const pathfindingSpeed = 5
+const pathfindingSpeed = 0
 
 let grid = null
 let exploredNodes = null
@@ -45,17 +46,17 @@ function initGrid() {
 				bottom: true,
 				left: true,
 				highlight: false,
-				distance: null,
-				parent: null,
 				getColor() {
 					if (this.highlight) {
-						if (this.highlight === "current") return athensGray
+						if (this.highlight === "athensGray") return athensGray
 
 						if (this.highlight === "openSet") return glacier
 
 						if (this.highlight === "closedSet") return azure
 
 						if (this.highlight === "path") return stormGray
+
+						if (this.highlight === "solution") return pink
 					}
 					return mirage
 				},
@@ -83,7 +84,7 @@ function draw() {
 	const svg = d3
 		.select("#mazeSvg")
 		.attr("viewBox", `0 0 ${svgWidth} ${svgHeight}`)
-		.attr("preserveAspectRatio", "xMidYMid meet")
+		.attr("preserveAspectRatio", "xMinYMin meet")
 
 	svg.selectAll(".cell")
 		.data(grid.flat())
@@ -270,6 +271,9 @@ async function startAlgorithm(mazeAlgorithm, pathfindingAlgorithm) {
 		case "greedyBFS":
 			await greedyBFS(mazeStart, mazeEnd)
 			break
+		case "aStar":
+			await aStar(mazeStart, mazeEnd)
+			break
 
 		default:
 			alert("Please select a valid pathfinding algorithm.")
@@ -398,8 +402,11 @@ function reconstructPath(pathMap) {
 	path = []
 	let current = mazeEnd
 
+	setCellState(current[0], current[1], { highlight: "solution" })
+
 	while (current) {
 		path.push(current)
+		setCellState(current[0], current[1], { highlight: "solution" })
 		current = pathMap.get(current.toString())
 	}
 
@@ -433,7 +440,7 @@ async function depthFirstSearch() {
 	while (stack.length > 0) {
 		const [row, col] = stack.pop()
 		exploredNodes[row][col] = true
-		setCellState(row, col, { highlight: "current" })
+		setCellState(row, col, { highlight: "athensGray" })
 
 		draw()
 
@@ -505,8 +512,7 @@ async function kruskalsAlgorithm() {
 					[neighbor[0], neighbor[1]],
 				])
 			)
-			grid[row][col].set = [[row, col]]
-			setCellState(row, col, { parent: [row, col] })
+			setCellState(row, col, { parent: [row, col], set: [[row, col]] })
 		}
 	}
 
@@ -568,16 +574,13 @@ async function kruskalsAlgorithm() {
 async function pathfindingDFS(start, end) {
 	let pathMap = new Map()
 
-	let stack = []
-	stack.push(start)
-
-	pathMap.set(start.toString(), null)
+	let stack = [start]
 
 	exploredNodes = initExploredNodesArray()
 
 	while (Array.isArray(stack) && stack.length > 0) {
 		const [row, col] = stack.pop()
-		setCellState(row, col, { highlight: "current" })
+		setCellState(row, col, { highlight: "athensGray" })
 
 		draw()
 
@@ -617,14 +620,13 @@ async function pathfindingDFS(start, end) {
 
 async function breadthFirstSearch(start, end) {
 	let pathMap = new Map()
-	let queue = []
-	queue.push(start)
+	let queue = [start]
 
 	exploredNodes = initExploredNodesArray()
 
 	while (Array.isArray(queue) && queue.length > 0) {
 		const [row, col] = queue.shift()
-		setCellState(row, col, { highlight: "current" })
+		setCellState(row, col, { highlight: "athensGray" })
 
 		draw()
 
@@ -637,7 +639,7 @@ async function breadthFirstSearch(start, end) {
 			return reconstructPath(pathMap)
 		}
 
-		setCellState(row, col, { highlight: "current" })
+		setCellState(row, col, { highlight: "athensGray" })
 
 		getNeighbors([row, col], false, true).forEach((neighbor) => {
 			if (!arrayIncludesCell(queue, neighbor)) {
@@ -658,18 +660,15 @@ async function breadthFirstSearch(start, end) {
 
 async function greedyBFS(start, end) {
 	let pathMap = new Map()
-	let queue = []
-	queue.push(start)
+	let queue = [start]
 
 	exploredNodes = initExploredNodesArray()
 
 	while (Array.isArray(queue) && queue.length > 0) {
 		const [row, col] = queue.shift()
-		setCellState(row, col, { highlight: "current" })
+		setCellState(row, col, { highlight: "athensGray" })
 
-		if (exploredNodes[row][col] === false) {
-			exploredNodes[row][col] = true
-		}
+		if (exploredNodes[row][col] === false) exploredNodes[row][col] = true
 
 		if ([row, col].toString() === end.toString()) {
 			setCellState(row, col, { highlight: "path" })
@@ -679,12 +678,9 @@ async function greedyBFS(start, end) {
 		getNeighbors([row, col], false, true).forEach((neighbor) => {
 			const [neighborRow, neighborCol] = neighbor
 
-			if (typeof grid[neighborRow][neighborCol].distance !== "number") {
-				let d =
-					Math.abs(mazeEnd[0] - neighborRow) +
-					Math.abs(mazeEnd[1] - neighborCol)
-				grid[neighborRow][neighborCol].distance = d
-			}
+			grid[neighborRow][neighborCol].distance ??=
+				Math.abs(mazeEnd[0] - neighborRow) +
+				Math.abs(mazeEnd[1] - neighborCol)
 
 			queue.push(neighbor)
 			setCellState(neighborRow, neighborCol, { highlight: "openSet" })
@@ -705,6 +701,70 @@ async function greedyBFS(start, end) {
 		await new Promise((resolve) => setTimeout(resolve, pathfindingSpeed))
 
 		setCellState(row, col, { highlight: "path" })
+	}
+	console.error("No path found.")
+	return false
+}
+
+async function aStar(start, end) {
+	function heuristic([x, y], [endX, endY]) {
+		return Math.abs(x - endX) + Math.abs(y - endY)
+	}
+
+	let pathMap = new Map()
+
+	let openSet = [start]
+
+	exploredNodes = initExploredNodesArray()
+
+	grid[start[0]][start[1]].gScore ??= 0
+
+	grid[start[0]][start[1]].fScore ??= heuristic(start, end)
+
+	while (Array.isArray(openSet) && openSet.length > 0) {
+		let [row, col] = openSet.shift()
+
+		if (exploredNodes[row][col] === false) exploredNodes[row][col] = true
+
+		const { gScore } = grid[row][col]
+
+		setCellState(row, col, { highlight: "athensGray" })
+
+		draw()
+
+		if ([row, col].toString() === end.toString()) {
+			setCellState(row, col, { highlight: "path" })
+			return reconstructPath(pathMap)
+		}
+
+		getNeighbors([row, col], false, true).forEach(([nRow, nCol]) => {
+			let { nGScore, nFScore } = grid[nRow][nCol]
+
+			nGScore ??= Infinity
+			nFScore ??= Infinity
+
+			let tentativeGScore = gScore + 1
+			if (tentativeGScore < nGScore) {
+				pathMap.set([nRow, nCol].toString(), [row, col])
+				nGScore = tentativeGScore
+				nFScore = tentativeGScore + heuristic([nRow, nCol], end)
+
+				setCellState(nRow, nCol, { gScore: nGScore, fScore: nFScore })
+				if (!openSet.includes([nRow, nCol])) {
+					openSet.push([nRow, nCol])
+					setCellState(nRow, nCol, {
+						highlight: "openSet",
+					})
+				}
+			}
+		})
+
+		openSet.sort(([aX, aY], [bX, bY]) => {
+			return grid[aX][aY].fScore - grid[bX][bY].fScore
+		})
+
+		setCellState(row, col, { highlight: "path" })
+		await new Promise((resolve) => setTimeout(resolve, pathfindingSpeed))
 	}
 	console.error("No path found.")
 	return false
