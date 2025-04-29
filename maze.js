@@ -10,8 +10,8 @@ const stormGray = "#666C85"
 const mirage = "#1A1D30"
 const pink = "#FFC0CB"
 
-const [rows, cols] = [15, 20]
-const cellSize = 40
+const [rows, cols] = [9, 16]
+const cellSize = 12
 const wallWidth = Math.floor(cellSize / 3)
 
 const svgWidth = cols * cellSize + (cols + 1) * wallWidth
@@ -23,50 +23,198 @@ const mazeEnd = [rows - 1, cols - 1]
 const mazeGenerationSpeed = 0
 const pathfindingSpeed = 0
 
-let grid = null
-let exploredNodes = null
-let path = null
+let grid, walls, existingWalls, exploredNodes, path
+
+class Cell {
+	constructor(row, col) {
+		this.row = row
+		this.col = col
+		this.x = this.col * cellSize + (this.col + 1) * wallWidth
+		this.y = this.row * cellSize + (this.row + 1) * wallWidth
+		this.wallIds = {
+			top: getWallId(this.row, this.col, "top"),
+			right: getWallId(this.row, this.col, "right"),
+			bottom: getWallId(this.row, this.col, "bottom"),
+			left: getWallId(this.row, this.col, "left"),
+		}
+		this.color = mirage
+	}
+}
 
 function initGrid() {
 	let maze = []
 	for (let row = 0; row < rows; row += 1) {
 		let rowArray = []
 		for (let col = 0; col < cols; col += 1) {
-			rowArray.push({
-				row,
-				col,
-				getX() {
-					return this.col * cellSize + (this.col + 1) * wallWidth
-				},
-				getY() {
-					return this.row * cellSize + (this.row + 1) * wallWidth
-				},
-				top: true,
-				right: true,
-				bottom: true,
-				left: true,
-				highlight: false,
-				getColor() {
-					if (this.highlight) {
-						if (this.highlight === "athensGray") return athensGray
-
-						if (this.highlight === "openSet") return glacier
-
-						if (this.highlight === "closedSet") return azure
-
-						if (this.highlight === "path") return stormGray
-
-						if (this.highlight === "solution") return pink
-					}
-					return mirage
-				},
-			})
+			rowArray.push(new Cell(row, col))
 		}
 		maze.push(rowArray)
 	}
 
 	return maze
 }
+
+function getWallId(x, y, wallSide) {
+	let [x2, y2] = [x, y]
+
+	if (wallSide === "top") x2 -= 1
+	if (wallSide === "right") y2 += 1
+	if (wallSide === "bottom") x2 += 1
+	if (wallSide === "left") y2 -= 1
+
+	const [[minX, minY], [maxX, maxY]] = [
+		[x, y],
+		[x2, y2],
+	].sort((a, b) => a[0] - b[0] || a[1] - b[1])
+
+	return `${minX},${minY}_${maxX},${maxY}`
+}
+
+function getWallData(variant, cellX, cellY) {
+	const orientationData = {
+		horizontal: {
+			wActiveWidth: cellSize + wallWidth * 2,
+			wActiveHeight: wallWidth,
+			wInactiveWidth: cellSize,
+			wInactiveHeight: wallWidth,
+		},
+
+		vertical: {
+			wActiveWidth: wallWidth,
+			wActiveHeight: cellSize + wallWidth * 2,
+			wInactiveWidth: wallWidth,
+			wInactiveHeight: cellSize,
+		},
+	}
+
+	const wallData = {
+		top: {
+			wActiveX: cellX - wallWidth,
+			wActiveY: cellY - wallWidth,
+			wInactiveX: cellX,
+			wInactiveY: cellY - wallWidth,
+			...orientationData.horizontal,
+		},
+
+		right: {
+			wActiveX: cellX + cellSize,
+			wActiveY: cellY - wallWidth,
+			wInactiveX: cellX + cellSize,
+			wInactiveY: cellY,
+			...orientationData.vertical,
+		},
+
+		bottom: {
+			wActiveX: cellX - wallWidth,
+			wActiveY: cellY + cellSize,
+			wInactiveX: cellX,
+			wInactiveY: cellY + cellSize,
+			...orientationData.horizontal,
+		},
+
+		left: {
+			wActiveX: cellX - wallWidth,
+			wActiveY: cellY - wallWidth,
+			wInactiveX: cellX - wallWidth,
+			wInactiveY: cellY,
+			...orientationData.vertical,
+		},
+	}
+
+	return wallData[variant]
+}
+
+class Wall {
+	constructor({ x: cellX, y: cellY, wallIds }, wallSide) {
+		this.solid = true
+		this.data = getWallData(wallSide, cellX, cellY)
+
+		const {
+			wActiveX: wallX,
+			wActiveY: wallY,
+			wActiveWidth: width,
+			wActiveHeight: height,
+		} = this.data
+
+		this.x = wallX
+		this.y = wallY
+		this.width = width
+		this.height = height
+
+		this.class = "wall"
+		this.id = wallIds[wallSide]
+	}
+	get color() {
+		const [x1, y1, x2, y2] = this.id
+			.split(RegExp("[,_]"))
+			.map((n) => parseInt(n))
+
+		const adjacentCells = [
+			isCellValid(x1, y1, "cell"),
+			isCellValid(x2, y2, "cell"),
+		].filter((i) => typeof i === "object")
+
+		const [colorOne, colorTwo] = [
+			d3.color(adjacentCells[0]?.color),
+			d3.color(adjacentCells[1]?.color),
+		]
+
+		const colorAverage =
+			colorOne && colorTwo
+				? d3
+						.rgb(
+							(colorOne.r + colorTwo.r) / 2,
+							(colorOne.g + colorTwo.g) / 2,
+							(colorOne.b + colorTwo.b) / 2
+						)
+						.formatHex()
+				: colorOne
+				? colorOne
+				: colorTwo
+
+		return this.solid ? mirage : colorAverage
+	}
+
+	state(value) {
+		const {
+			wActiveX,
+			wActiveY,
+			wActiveWidth,
+			wActiveHeight,
+			wInactiveX,
+			wInactiveY,
+			wInactiveWidth,
+			wInactiveHeight,
+		} = this.data
+
+		this.x = value ? wActiveX : wInactiveX
+		this.y = value ? wActiveY : wInactiveY
+		this.width = value ? wActiveWidth : wInactiveWidth
+		this.height = value ? wActiveHeight : wInactiveHeight
+
+		this.solid = value
+	}
+}
+
+function initWalls() {
+	walls = []
+
+	existingWalls = new Set()
+
+	grid.flat().forEach((d) => {
+		const wallSides = ["top", "right", "bottom", "left"]
+		wallSides.forEach((wallSide) => {
+			const wall = new Wall(d, wallSide)
+			if (!existingWalls.has(wall.id)) {
+				existingWalls.add(wall.id)
+				walls.push(wall)
+			}
+		})
+	})
+
+	return walls
+}
+
 function initExploredNodesArray() {
 	return Array.from({ length: rows }, () =>
 		Array.from({ length: cols }, () => false)
@@ -74,8 +222,9 @@ function initExploredNodesArray() {
 }
 
 function setup() {
-	grid = initGrid()
 	exploredNodes = initExploredNodesArray()
+	grid = initGrid()
+	walls = initWalls()
 	path = []
 	draw()
 }
@@ -84,7 +233,7 @@ function draw() {
 	const svg = d3
 		.select("#mazeSvg")
 		.attr("viewBox", `0 0 ${svgWidth} ${svgHeight}`)
-		.attr("preserveAspectRatio", "xMinYMin meet")
+		.attr("preserveAspectRatio", "xMidYMid meet")
 
 	svg.selectAll(".cell")
 		.data(grid.flat())
@@ -94,138 +243,20 @@ function draw() {
 			return `cell_(${cell.row},${cell.col})`
 		})
 		.attr("x", (cell) => {
-			return cell.getX()
+			return cell.x
 		})
 		.attr("y", (cell) => {
-			return cell.getY()
+			return cell.y
 		})
 		.attr("width", cellSize)
 		.attr("height", cellSize)
-		.attr("fill", (d) => d.getColor())
-
-	function getWallId(x, y, wallSide) {
-		let [x2, y2] = [x, y]
-
-		if (wallSide === "top") x2 -= 1
-		if (wallSide === "right") y2 += 1
-		if (wallSide === "bottom") x2 += 1
-		if (wallSide === "left") y2 -= 1
-
-		const [[minX, minY], [maxX, maxY]] = [
-			[x, y],
-			[x2, y2],
-		].sort((a, b) => a[0] - b[0] || a[1] - b[1])
-
-		return `${minX},${minY}-${maxX},${maxY}`
-	}
-
-	const walls = []
-
-	grid.flat().forEach((d) => {
-		const cellX = d.getX()
-		const cellY = d.getY()
-
-		// ? Can probably refactor this a bit...
-
-		const cellColor = d3.color(d.getColor())
-		const topCellColor = isCellValid(d.row - 1, d.col, undefined, true)
-			? d3.color(grid[d.row - 1][d.col].getColor())
-			: undefined
-		const rightCellColor = isCellValid(d.row, d.col + 1, undefined, true)
-			? d3.color(grid[d.row][d.col + 1].getColor())
-			: undefined
-		const bottomCellColor = isCellValid(d.row + 1, d.col, undefined, true)
-			? d3.color(grid[d.row + 1][d.col].getColor())
-			: undefined
-		const leftCellColor = isCellValid(d.row, d.col - 1, undefined, true)
-			? d3.color(grid[d.row][d.col - 1].getColor())
-			: undefined
-
-		function colorAverage(colorOne, colorTwo) {
-			return d3.color(
-				d3.rgb(
-					(colorOne.r + colorTwo.r) / 2,
-					(colorOne.g + colorTwo.g) / 2,
-					(colorOne.b + colorTwo.b) / 2
-				)
-			)
-		}
-
-		if (!walls.some((wall) => wall.id === getWallId(d.row, d.col, "top"))) {
-			walls.push({
-				x: d.top ? cellX - wallWidth : cellX,
-				y: cellY - wallWidth,
-				width: d.top ? cellSize + wallWidth * 2 : cellSize,
-				height: wallWidth,
-				class: `wall ${getWallId(d.row, d.col, "top")}`,
-				id: getWallId(d.row, d.col, "top"),
-				color: d.top
-					? mirage
-					: colorAverage(cellColor, topCellColor)
-					? colorAverage(cellColor, topCellColor)
-					: cellColor,
-			})
-		}
-
-		if (
-			!walls.some((wall) => wall.id === getWallId(d.row, d.col, "right"))
-		) {
-			walls.push({
-				x: cellX + cellSize,
-				y: d.right ? cellY - wallWidth : cellY,
-				width: wallWidth,
-				height: d.right ? cellSize + wallWidth * 2 : cellSize,
-				class: `wall ${getWallId(d.row, d.col, "right")}`,
-				id: getWallId(d.row, d.col, "right"),
-				color: d.right
-					? mirage
-					: colorAverage(cellColor, rightCellColor)
-					? colorAverage(cellColor, rightCellColor)
-					: cellColor,
-			})
-		}
-
-		if (
-			!walls.some((wall) => wall.id === getWallId(d.row, d.col, "bottom"))
-		) {
-			walls.push({
-				x: d.bottom ? cellX - wallWidth : cellX,
-				y: cellY + cellSize,
-				width: d.bottom ? cellSize + wallWidth * 2 : cellSize,
-				height: wallWidth,
-				class: `wall ${getWallId(d.row, d.col, "bottom")}`,
-				id: getWallId(d.row, d.col, "bottom"),
-				color: d.bottom
-					? mirage
-					: colorAverage(cellColor, bottomCellColor)
-					? colorAverage(cellColor, bottomCellColor)
-					: cellColor,
-			})
-		}
-
-		if (
-			!walls.some((wall) => wall.id === getWallId(d.row, d.col, "left"))
-		) {
-			walls.push({
-				x: cellX - wallWidth,
-				y: d.left ? cellY - wallWidth : cellY,
-				width: wallWidth,
-				height: d.left ? cellSize + wallWidth * 2 : cellSize,
-				class: `wall ${getWallId(d.row, d.col, "left")}`,
-				id: getWallId(d.row, d.col, "left"),
-				color: d.left
-					? mirage
-					: colorAverage(cellColor, leftCellColor)
-					? colorAverage(cellColor, leftCellColor)
-					: cellColor,
-			})
-		}
-	})
+		.attr("fill", (d) => d.color)
 
 	svg.selectAll(".wall")
 		.data(walls)
 		.join("rect")
 		.attr("class", (d) => d.class)
+		.attr("id", (d) => d.id)
 		.attr("x", (d) => d.x)
 		.attr("y", (d) => d.y)
 		.attr("width", (d) => d.width)
@@ -233,15 +264,7 @@ function draw() {
 		.attr("fill", (d) => d.color)
 }
 
-function resizeSVG() {
-	const width = mazeDiv.getBoundingClientRect().width
-	const height = (width * svgHeight) / svgWidth
-
-	svg.attr("width", width).attr("height", height)
-}
-
 async function startAlgorithm(mazeAlgorithm, pathfindingAlgorithm) {
-	setup()
 	startButton.disabled = true
 	clearButton.disabled = true
 
@@ -257,7 +280,7 @@ async function startAlgorithm(mazeAlgorithm, pathfindingAlgorithm) {
 			break
 
 		default:
-			alert("Please select a valid maze generation algorithm.")
+			console.error("Please select a valid maze generation algorithm.")
 			return
 	}
 
@@ -276,7 +299,7 @@ async function startAlgorithm(mazeAlgorithm, pathfindingAlgorithm) {
 			break
 
 		default:
-			alert("Please select a valid pathfinding algorithm.")
+			console.error("Please select a valid pathfinding algorithm.")
 			return
 	}
 
@@ -312,57 +335,60 @@ function arrayIncludesCell(array, cell) {
 	return array.some((item) => item[0] === cell[0] && item[1] === cell[1])
 }
 
-function isCellValid(row, col, visited, validityOnly) {
+function isCellValid(row, col, expectation, visited) {
 	const validRow = row >= 0 && row < rows
 	const validCol = col >= 0 && col < cols
 	const validCell = validRow && validCol
 
-	if (validityOnly) return validCell
+	if (expectation === "validity") return validCell
 
-	if (validCell) {
+	if (validCell && expectation === "cell") return grid[row][col]
+
+	if (validCell && expectation === "status")
 		return exploredNodes[row][col] === visited
-	}
+
 	return false
 }
 
 function getNeighbors(
-	xy,
+	[row, col],
+	expectation = null,
 	visited = false,
-	pathfinding = false,
-	validityOnly = false
+	pathfinding = false
 ) {
-	const [row, col] = xy
 	const neighbors = []
 	const cell = grid[row][col]
+
 	const directions = [
 		{
 			rowOffset: -1,
 			colOffset: 0,
 			wall: "top",
-			valid: isCellValid(row - 1, col, visited, validityOnly),
+			valid: isCellValid(row - 1, col, expectation, visited),
 		},
 		{
 			rowOffset: 0,
 			colOffset: 1,
 			wall: "right",
-			valid: isCellValid(row, col + 1, visited, validityOnly),
+			valid: isCellValid(row, col + 1, expectation, visited),
 		},
 		{
 			rowOffset: 1,
 			colOffset: 0,
 			wall: "bottom",
-			valid: isCellValid(row + 1, col, visited, validityOnly),
+			valid: isCellValid(row + 1, col, expectation, visited),
 		},
 		{
 			rowOffset: 0,
 			colOffset: -1,
 			wall: "left",
-			valid: isCellValid(row, col - 1, visited, validityOnly),
+			valid: isCellValid(row, col - 1, expectation, visited),
 		},
 	]
 
 	directions.forEach(({ rowOffset, colOffset, wall, valid }) => {
-		if (valid && (!pathfinding || !cell[wall])) {
+		const wallObj = walls.find((w) => w.id === cell.wallIds[wall])
+		if (valid && (!pathfinding || !wallObj.solid)) {
 			neighbors.push([row + rowOffset, col + colOffset])
 		}
 	})
@@ -380,33 +406,27 @@ function removeWalls(row, col, nextRow, nextCol) {
 	const x = row - nextRow
 	const y = col - nextCol
 
-	if (x === 1) {
-		setCellState(row, col, { top: false })
-		setCellState(nextRow, nextCol, { bottom: false })
-	}
-	if (x === -1) {
-		setCellState(row, col, { bottom: false })
-		setCellState(nextRow, nextCol, { top: false })
-	}
-	if (y === 1) {
-		setCellState(row, col, { left: false })
-		setCellState(nextRow, nextCol, { right: false })
-	}
-	if (y === -1) {
-		setCellState(row, col, { right: false })
-		setCellState(nextRow, nextCol, { left: false })
-	}
+	const wallIds = grid[row][col].wallIds
+
+	let wallVariant = null
+
+	if (x === 1) wallVariant = "top"
+	if (y === -1) wallVariant = "right"
+	if (x === -1) wallVariant = "bottom"
+	if (y === 1) wallVariant = "left"
+
+	walls.find((wall) => wall.id === wallIds[wallVariant]).state(false)
 }
 
 function reconstructPath(pathMap) {
 	path = []
 	let current = mazeEnd
 
-	setCellState(current[0], current[1], { highlight: "solution" })
+	setCellState(current[0], current[1], { color: pink })
 
 	while (current) {
 		path.push(current)
-		setCellState(current[0], current[1], { highlight: "solution" })
+		setCellState(current[0], current[1], { color: pink })
 		current = pathMap.get(current.toString())
 	}
 
@@ -440,16 +460,16 @@ async function depthFirstSearch() {
 	while (stack.length > 0) {
 		const [row, col] = stack.pop()
 		exploredNodes[row][col] = true
-		setCellState(row, col, { highlight: "athensGray" })
+		setCellState(row, col, { color: athensGray })
 
 		draw()
 
 		await new Promise((resolve) => setTimeout(resolve, mazeGenerationSpeed))
 
-		const neighbors = getNeighbors([row, col])
+		const neighbors = getNeighbors([row, col], "status", false)
 
 		if (!Array.isArray(neighbors) || !neighbors.length > 0) {
-			setCellState(row, col, { highlight: "closedSet" })
+			setCellState(row, col, { color: azure })
 			continue
 		}
 
@@ -458,8 +478,8 @@ async function depthFirstSearch() {
 
 		stack.push([row, col], [nextRow, nextCol])
 
-		setCellState(row, col, { highlight: "openSet" })
-		setCellState(nextRow, nextCol, { highlight: "openSet" })
+		setCellState(row, col, { color: glacier })
+		setCellState(nextRow, nextCol, { color: glacier })
 	}
 }
 
@@ -468,12 +488,12 @@ async function randomizedPrims() {
 
 	exploredNodes = initExploredNodesArray()
 	exploredNodes[mazeStart[0]][mazeStart[1]] = true
-	setCellState(mazeStart[0], mazeStart[1], { highlight: "closedSet" })
+	setCellState(mazeStart[0], mazeStart[1], { color: azure })
 
-	getNeighbors(mazeStart).forEach((neighbor) => {
+	getNeighbors(mazeStart, "status", false).forEach((neighbor) => {
 		const [row, col] = neighbor
 		stack.push([row, col])
-		setCellState(row, col, { highlight: "openSet" })
+		setCellState(row, col, { color: glacier })
 	})
 
 	while (stack.length > 0) {
@@ -481,17 +501,17 @@ async function randomizedPrims() {
 
 		draw()
 
-		const neighbors = getNeighbors([row, col], true)
+		const neighbors = getNeighbors([row, col], "status", true)
 
 		const [nextRow, nextCol] = getRandomItem(neighbors)
 
 		exploredNodes[row][col] = true
-		setCellState(row, col, { highlight: "closedSet" })
+		setCellState(row, col, { color: azure })
 		removeWalls(row, col, nextRow, nextCol)
-		getNeighbors([row, col]).forEach((neighbor) => {
+		getNeighbors([row, col], "status", false).forEach((neighbor) => {
 			if (!arrayIncludesCell(stack, neighbor)) {
 				stack.push(neighbor)
-				setCellState(neighbor[0], neighbor[1], { highlight: "openSet" })
+				setCellState(neighbor[0], neighbor[1], { color: glacier })
 			}
 		})
 		await new Promise((resolve) => setTimeout(resolve, mazeGenerationSpeed))
@@ -505,7 +525,7 @@ async function kruskalsAlgorithm() {
 
 	for (let row = 0; row < rows; row += 1) {
 		for (let col = 0; col < cols; col += 1) {
-			let neighbors = getNeighbors([row, col], false, false, true)
+			let neighbors = getNeighbors([row, col], "validity")
 			neighbors.forEach((neighbor) =>
 				coordinatePairs.push([
 					[row, col],
@@ -529,8 +549,8 @@ async function kruskalsAlgorithm() {
 		const neighbor = grid[neighborRow][neighborCol]
 
 		removeWalls(row, col, neighborRow, neighborCol)
-		setCellState(neighborRow, neighborCol, { highlight: "closedSet" })
-		setCellState(row, col, { highlight: "closedSet" })
+		setCellState(neighborRow, neighborCol, { color: azure })
+		setCellState(row, col, { color: azure })
 
 		let currentDistance = distance(row, col, mazeStart[0], mazeStart[1])
 		let neighborDistance = distance(
@@ -580,7 +600,7 @@ async function pathfindingDFS(start, end) {
 
 	while (Array.isArray(stack) && stack.length > 0) {
 		const [row, col] = stack.pop()
-		setCellState(row, col, { highlight: "athensGray" })
+		setCellState(row, col, { color: athensGray })
 
 		draw()
 
@@ -589,11 +609,11 @@ async function pathfindingDFS(start, end) {
 		}
 
 		if ([row, col].toString() === end.toString()) {
-			setCellState(row, col, { highlight: "path" })
+			setCellState(row, col, { color: stormGray })
 			return reconstructPath(pathMap)
 		}
 
-		getNeighbors([row, col], false, true).forEach((neighbor) => {
+		getNeighbors([row, col], "status", false, true).forEach((neighbor) => {
 			let [neighborRow, neighborCol] = neighbor
 
 			if (exploredNodes[neighborRow][neighborCol] === false) {
@@ -612,7 +632,7 @@ async function pathfindingDFS(start, end) {
 		}
 
 		await new Promise((resolve) => setTimeout(resolve, pathfindingSpeed))
-		setCellState(row, col, { highlight: "path" })
+		setCellState(row, col, { color: stormGray })
 	}
 	console.error("No path found.")
 	return false
@@ -626,7 +646,7 @@ async function breadthFirstSearch(start, end) {
 
 	while (Array.isArray(queue) && queue.length > 0) {
 		const [row, col] = queue.shift()
-		setCellState(row, col, { highlight: "athensGray" })
+		setCellState(row, col, { color: athensGray })
 
 		draw()
 
@@ -635,16 +655,16 @@ async function breadthFirstSearch(start, end) {
 		}
 
 		if ([row, col].toString() === end.toString()) {
-			setCellState(row, col, { highlight: "path" })
+			setCellState(row, col, { color: stormGray })
 			return reconstructPath(pathMap)
 		}
 
-		setCellState(row, col, { highlight: "athensGray" })
+		setCellState(row, col, { color: athensGray })
 
-		getNeighbors([row, col], false, true).forEach((neighbor) => {
+		getNeighbors([row, col], "status", false, true).forEach((neighbor) => {
 			if (!arrayIncludesCell(queue, neighbor)) {
 				queue.push(neighbor)
-				setCellState(neighbor[0], neighbor[1], { highlight: "openSet" })
+				setCellState(neighbor[0], neighbor[1], { color: glacier })
 			}
 			if (!pathMap.has(neighbor.toString())) {
 				pathMap.set(neighbor.toString(), [row, col])
@@ -652,7 +672,7 @@ async function breadthFirstSearch(start, end) {
 		})
 
 		await new Promise((resolve) => setTimeout(resolve, pathfindingSpeed))
-		setCellState(row, col, { highlight: "path" })
+		setCellState(row, col, { color: stormGray })
 	}
 	console.error("No path found.")
 	return false
@@ -666,16 +686,16 @@ async function greedyBFS(start, end) {
 
 	while (Array.isArray(queue) && queue.length > 0) {
 		const [row, col] = queue.shift()
-		setCellState(row, col, { highlight: "athensGray" })
+		setCellState(row, col, { color: athensGray })
 
 		if (exploredNodes[row][col] === false) exploredNodes[row][col] = true
 
 		if ([row, col].toString() === end.toString()) {
-			setCellState(row, col, { highlight: "path" })
+			setCellState(row, col, { color: stormGray })
 			return reconstructPath(pathMap)
 		}
 
-		getNeighbors([row, col], false, true).forEach((neighbor) => {
+		getNeighbors([row, col], "status", false, true).forEach((neighbor) => {
 			const [neighborRow, neighborCol] = neighbor
 
 			grid[neighborRow][neighborCol].distance ??=
@@ -683,7 +703,7 @@ async function greedyBFS(start, end) {
 				Math.abs(mazeEnd[1] - neighborCol)
 
 			queue.push(neighbor)
-			setCellState(neighborRow, neighborCol, { highlight: "openSet" })
+			setCellState(neighborRow, neighborCol, { color: glacier })
 
 			queue.sort((a, b) => {
 				const aDistance = grid[a[0]][a[1]].distance
@@ -700,7 +720,7 @@ async function greedyBFS(start, end) {
 
 		await new Promise((resolve) => setTimeout(resolve, pathfindingSpeed))
 
-		setCellState(row, col, { highlight: "path" })
+		setCellState(row, col, { color: stormGray })
 	}
 	console.error("No path found.")
 	return false
@@ -728,42 +748,47 @@ async function aStar(start, end) {
 
 		const { gScore } = grid[row][col]
 
-		setCellState(row, col, { highlight: "athensGray" })
+		setCellState(row, col, { color: athensGray })
 
 		draw()
 
 		if ([row, col].toString() === end.toString()) {
-			setCellState(row, col, { highlight: "path" })
+			setCellState(row, col, { color: stormGray })
 			return reconstructPath(pathMap)
 		}
 
-		getNeighbors([row, col], false, true).forEach(([nRow, nCol]) => {
-			let { nGScore, nFScore } = grid[nRow][nCol]
+		getNeighbors([row, col], "status", false, true).forEach(
+			([nRow, nCol]) => {
+				let { nGScore, nFScore } = grid[nRow][nCol]
 
-			nGScore ??= Infinity
-			nFScore ??= Infinity
+				nGScore ??= Infinity
+				nFScore ??= Infinity
 
-			let tentativeGScore = gScore + 1
-			if (tentativeGScore < nGScore) {
-				pathMap.set([nRow, nCol].toString(), [row, col])
-				nGScore = tentativeGScore
-				nFScore = tentativeGScore + heuristic([nRow, nCol], end)
+				let tentativeGScore = gScore + 1
+				if (tentativeGScore < nGScore) {
+					pathMap.set([nRow, nCol].toString(), [row, col])
+					nGScore = tentativeGScore
+					nFScore = tentativeGScore + heuristic([nRow, nCol], end)
 
-				setCellState(nRow, nCol, { gScore: nGScore, fScore: nFScore })
-				if (!openSet.includes([nRow, nCol])) {
-					openSet.push([nRow, nCol])
 					setCellState(nRow, nCol, {
-						highlight: "openSet",
+						gScore: nGScore,
+						fScore: nFScore,
 					})
+					if (!openSet.includes([nRow, nCol])) {
+						openSet.push([nRow, nCol])
+						setCellState(nRow, nCol, {
+							color: glacier,
+						})
+					}
 				}
 			}
-		})
+		)
 
 		openSet.sort(([aX, aY], [bX, bY]) => {
 			return grid[aX][aY].fScore - grid[bX][bY].fScore
 		})
 
-		setCellState(row, col, { highlight: "path" })
+		setCellState(row, col, { color: stormGray })
 		await new Promise((resolve) => setTimeout(resolve, pathfindingSpeed))
 	}
 	console.error("No path found.")
@@ -771,7 +796,3 @@ async function aStar(start, end) {
 }
 
 setup()
-
-resizeSVG()
-
-window.addEventListener("resize", resizeSVG)
